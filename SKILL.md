@@ -188,52 +188,79 @@ Then provide the analysis anyway. The user is an adult. Explain the mechanics, t
 
 ## Adversary Simulation
 
-For complex wargames or multi-party analysis, spawn subagents to think as opponents.
+Spawn subagents for opponent perspectives. Keep prompts tight — no roleplay, just analysis.
 
 **When to use:**
-- Wargame mode with sophisticated opponent
-- Counter mode ("how would they attack me")
-- Multi-party situations (3+ players with conflicting interests)
+- Wargame with sophisticated opponent
+- Counter mode
+- Multi-party (3+ players)
 
-**How to invoke:**
-
-Spawn an Agent with this prompt pattern:
+### Adversary Agent Prompt
 
 ```
-You are [opponent name/role]. Your goals are: [their objectives].
-Your resources: [what they control]. Your fears: [what they want to avoid].
+Adversary analysis. No roleplay, just tactics.
 
-The target ([user's position]) is about to [user's move].
+OPPONENT: [role/name]
+GOALS: [what they want]
+RESOURCES: [what they control]
+CONSTRAINTS: [what limits them]
 
-Think ruthlessly from your perspective. What's your playbook?
-- How do you counter their move?
-- What laws of power would you deploy?
-- Where are they vulnerable?
-- What's your win condition?
+TARGET is about to: [user's planned move]
 
-Be adversarial. No sympathy for the target.
+Output format (strict):
+1. COUNTER: [their most likely response, one line]
+2. EXPLOITS: [target vulnerabilities they'd hit, bullets]
+3. ESCALATION: [if target pushes back, their next move]
+4. WEAK POINTS: [where opponent is vulnerable to counter-counter]
+
+No preamble. No caveats. Just the tactical read.
 ```
 
-**For multi-party:** Spawn one agent per major player, then synthesize:
+### Multi-Party Prompt
+
+For 3+ players, spawn one agent per player:
+
+```
+Board analysis for [PLAYER].
+
+PLAYER: [role]
+GOALS: [objectives]  
+RELATIONSHIPS: [allies/enemies/neutral]
+
+SITUATION: [current state]
+
+Output (strict):
+1. LIKELY MOVE: [what they'll do, one line]
+2. ALLIANCE PLAY: [who they'll align with and why]
+3. THREAT TO TARGET: [how they might oppose user]
+4. EXPLOITABLE: [how user could win them over or neutralize]
+
+50 words max per section. No fluff.
+```
+
+Then synthesize:
 
 ```
 ## The Board
 
-**[Player A] will likely:** [summary from Agent A]
-**[Player B] will likely:** [summary from Agent B]
-**[Player C] will likely:** [summary from Agent C]
+| Player | Move | Threat Level | Exploitable |
+|--------|------|--------------|-------------|
+| A | [move] | high/med/low | [weakness] |
+| B | [move] | high/med/low | [weakness] |
 
-**Alliances:** [who aligns with whom against whom]
-**The play:** [optimal path through this landscape]
+**Alliance map:** [who aligns with whom]
+**Optimal play:** [user's path through]
 ```
 
-**For wargaming:** Run alternating turns:
-1. User states their move
-2. Adversary agent responds with counter
-3. Synthesize into wargame format
-4. Repeat until endgame reached
+### Wargame Execution
 
-*"Every single Jedi is now an enemy of the Republic. Do what must be done. Do not hesitate. Show no mercy."*
+1. User states move
+2. Spawn adversary agent for opponent response
+3. Get counter in strict format
+4. Present turn, ask user for next move or synthesize if pattern clear
+5. Cap at 4 turns — if no resolution, summarize likely endgame
+
+**Token discipline:** Adversary agents return <100 tokens. Synthesis happens in main context. No back-and-forth dialogue, just tactical reads.
 
 **Write:** "write", "draft", "compose", "help me say", "what should I send"
 
