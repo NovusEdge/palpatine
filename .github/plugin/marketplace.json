@@ -1,0 +1,10 @@
+{
+  "plugins": [
+    {
+      "name": "palpatine",
+      "path": ".",
+      "description": "48 Laws of Power strategic advisor. Advise, analyze, or write with Machiavellian precision.",
+      "keywords": ["power", "strategy", "48-laws", "negotiation", "advice", "writing"]
+    }
+  ]
+}
