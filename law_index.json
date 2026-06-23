@@ -1,0 +1,395 @@
+{
+  "laws": [
+    {
+      "id": 1,
+      "name": "Never Outshine the Master",
+      "essence": "Make superiors feel superior. Your talents can threaten those above you.",
+      "when": ["new job", "dealing with ego", "seeking favor", "working under authority"],
+      "reversal": "Outshine a falling or weak master to hasten their end",
+      "keywords": ["boss", "superior", "credit", "humble", "promotion", "jealousy", "ego", "manager", "leader"]
+    },
+    {
+      "id": 2,
+      "name": "Never Put Too Much Trust in Friends, Learn How to Use Enemies",
+      "essence": "Friends betray easily from envy. Former enemies prove more loyal.",
+      "when": ["hiring", "partnerships", "alliances", "trust decisions"],
+      "reversal": "Use friends for low-stakes favors where betrayal cost is low",
+      "keywords": ["friend", "enemy", "trust", "betrayal", "loyalty", "hire", "partner", "alliance"]
+    },
+    {
+      "id": 3,
+      "name": "Conceal Your Intentions",
+      "essence": "Keep people off-balance by never revealing your purpose. They cannot prepare a defense.",
+      "when": ["negotiation", "competition", "strategy", "planning"],
+      "reversal": "Reveal intentions when transparency builds trust strategically",
+      "keywords": ["secret", "hide", "intention", "plan", "strategy", "reveal", "transparent", "misdirect"]
+    },
+    {
+      "id": 4,
+      "name": "Always Say Less Than Necessary",
+      "essence": "The more you say, the more common you appear. Powerful people impress by saying less.",
+      "when": ["meetings", "negotiation", "first impressions", "interviews"],
+      "reversal": "Speak more when silence would seem suspicious or weak",
+      "keywords": ["talk", "speak", "silence", "words", "verbose", "quiet", "mysterious", "impress"]
+    },
+    {
+      "id": 5,
+      "name": "So Much Depends on Reputation - Guard It with Your Life",
+      "essence": "Reputation is the cornerstone of power. Make it unassailable.",
+      "when": ["public perception", "crisis", "attacks", "brand building"],
+      "reversal": "Attack enemy reputation while protecting yours",
+      "keywords": ["reputation", "image", "perception", "brand", "credibility", "attack", "defend", "public"]
+    },
+    {
+      "id": 6,
+      "name": "Court Attention at All Cost",
+      "essence": "Everything is judged by appearance. Be conspicuous, stand out.",
+      "when": ["visibility", "career growth", "marketing", "presence"],
+      "reversal": "Lay low when attention would invite attack or envy",
+      "keywords": ["attention", "visible", "noticed", "stand out", "fame", "spotlight", "presence", "ignored"]
+    },
+    {
+      "id": 7,
+      "name": "Get Others to Do the Work, but Always Take the Credit",
+      "essence": "Use others' work to further your cause. You get the efficiency and the glory.",
+      "when": ["delegation", "leadership", "projects", "team management"],
+      "reversal": "Give credit when loyalty matters more than glory",
+      "keywords": ["credit", "delegate", "work", "team", "glory", "recognition", "others", "steal"]
+    },
+    {
+      "id": 8,
+      "name": "Make Other People Come to You - Use Bait if Necessary",
+      "essence": "When you force others to act, you control the game. Lure with gains, then attack.",
+      "when": ["negotiation", "sales", "conflict", "positioning"],
+      "reversal": "Go to them when speed matters more than positioning",
+      "keywords": ["bait", "lure", "control", "position", "negotiate", "attract", "come to me", "wait"]
+    },
+    {
+      "id": 9,
+      "name": "Win Through Your Actions, Never Through Argument",
+      "essence": "Arguments create resentment. Demonstrate, don't explicate.",
+      "when": ["conflict", "persuasion", "proving worth", "disagreements"],
+      "reversal": "Argue only when the audience values logic over emotion",
+      "keywords": ["argue", "argument", "demonstrate", "prove", "action", "words", "debate", "show"]
+    },
+    {
+      "id": 10,
+      "name": "Infection: Avoid the Unhappy and Unlucky",
+      "essence": "Emotional states are contagious. Associate with the fortunate.",
+      "when": ["relationships", "team building", "networking", "associations"],
+      "reversal": "Help the unlucky only when the cost is contained",
+      "keywords": ["negative", "unlucky", "unhappy", "toxic", "associate", "contagious", "avoid", "positive"]
+    },
+    {
+      "id": 11,
+      "name": "Learn to Keep People Dependent on You",
+      "essence": "Be needed and wanted. The more they depend on you, the more freedom you have.",
+      "when": ["job security", "relationships", "power building", "value creation"],
+      "reversal": "Create independence when loyalty is secured by other means",
+      "keywords": ["depend", "need", "valuable", "indispensable", "rely", "irreplaceable", "security"]
+    },
+    {
+      "id": 12,
+      "name": "Use Selective Honesty and Generosity to Disarm Your Victim",
+      "essence": "One sincere move covers dozens of dishonest ones. Honesty opens armor.",
+      "when": ["trust building", "negotiation", "disarming suspicion", "manipulation"],
+      "reversal": "Be consistently honest when long-term trust outweighs short-term gain",
+      "keywords": ["honest", "generous", "trust", "disarm", "gift", "sincere", "trojan", "guard"]
+    },
+    {
+      "id": 13,
+      "name": "When Asking for Help, Appeal to Self-Interest, Never Mercy",
+      "essence": "Show others how helping you benefits them. Self-interest motivates.",
+      "when": ["asking favors", "pitching", "fundraising", "requests"],
+      "reversal": "Appeal to mercy only with those who value moral standing",
+      "keywords": ["help", "favor", "ask", "benefit", "self-interest", "pitch", "request", "mercy"]
+    },
+    {
+      "id": 14,
+      "name": "Pose as a Friend, Work as a Spy",
+      "essence": "Gather information in social encounters. Every interaction is intelligence.",
+      "when": ["networking", "competition", "due diligence", "research"],
+      "reversal": "Be genuine when authentic relationships matter more than intel",
+      "keywords": ["spy", "information", "gather", "intelligence", "friend", "social", "research", "secrets"]
+    },
+    {
+      "id": 15,
+      "name": "Crush Your Enemy Totally",
+      "essence": "Leave no embers. A half-defeated enemy will recover and seek revenge.",
+      "when": ["competition", "conflict", "rivals", "decisive moments"],
+      "reversal": "Show mercy when the enemy can become a useful ally",
+      "keywords": ["enemy", "crush", "destroy", "rival", "finish", "complete", "revenge", "decisive"]
+    },
+    {
+      "id": 16,
+      "name": "Use Absence to Increase Respect and Honor",
+      "essence": "Too much presence cheapens you. Create value through scarcity.",
+      "when": ["relationships", "presence management", "value building"],
+      "reversal": "Stay present when absence would be seen as abandonment",
+      "keywords": ["absence", "scarcity", "withdraw", "rare", "presence", "value", "respect", "distance"]
+    },
+    {
+      "id": 17,
+      "name": "Keep Others in Suspended Terror: Cultivate an Air of Unpredictability",
+      "essence": "Be deliberately unpredictable. They cannot prepare for what they cannot foresee.",
+      "when": ["negotiation", "leadership", "intimidation", "control"],
+      "reversal": "Be predictable when trust and stability are required",
+      "keywords": ["unpredictable", "surprise", "random", "terror", "fear", "unknown", "chaos", "stable"]
+    },
+    {
+      "id": 18,
+      "name": "Do Not Build Fortresses to Protect Yourself - Isolation is Dangerous",
+      "essence": "Isolation cuts you from information and allies. Circulate among people.",
+      "when": ["networking", "information gathering", "alliance building"],
+      "reversal": "Isolate temporarily when focus outweighs connection",
+      "keywords": ["isolate", "fortress", "alone", "network", "circulate", "connect", "mingle", "withdraw"]
+    },
+    {
+      "id": 19,
+      "name": "Know Who You're Dealing With - Do Not Offend the Wrong Person",
+      "essence": "Choose victims carefully. Some people will spend their lives seeking revenge.",
+      "when": ["conflict", "negotiation", "new relationships", "risk assessment"],
+      "reversal": "Take calculated risks when the potential gain outweighs enemy danger",
+      "keywords": ["enemy", "opponent", "wrong person", "revenge", "assess", "careful", "target", "victim"]
+    },
+    {
+      "id": 20,
+      "name": "Do Not Commit to Anyone",
+      "essence": "Stay independent. Playing sides against each other gives you power.",
+      "when": ["alliances", "politics", "negotiations", "choosing sides"],
+      "reversal": "Commit fully when loyalty is the only path to power",
+      "keywords": ["commit", "sides", "neutral", "independent", "alliance", "loyalty", "choose", "fence"]
+    },
+    {
+      "id": 21,
+      "name": "Play a Sucker to Catch a Sucker - Seem Dumber Than Your Mark",
+      "essence": "Make others feel smart. They'll never suspect your real motives.",
+      "when": ["negotiation", "deception", "information gathering", "manipulation"],
+      "reversal": "Show intelligence when respect is needed more than surprise",
+      "keywords": ["dumb", "stupid", "smart", "fool", "underestimate", "sucker", "pretend", "naive"]
+    },
+    {
+      "id": 22,
+      "name": "Use the Surrender Tactic: Transform Weakness into Power",
+      "essence": "When weaker, surrender. It gives you time to recover and torment them.",
+      "when": ["losing position", "overwhelmed", "strategic retreat", "buying time"],
+      "reversal": "Fight when surrender would mean permanent loss",
+      "keywords": ["surrender", "weak", "retreat", "yield", "submit", "lose", "recover", "patience"]
+    },
+    {
+      "id": 23,
+      "name": "Concentrate Your Forces",
+      "essence": "Intensity defeats extensity. Find the one key source of power.",
+      "when": ["resource allocation", "focus", "strategy", "priorities"],
+      "reversal": "Diversify when concentration creates single points of failure",
+      "keywords": ["focus", "concentrate", "resources", "priority", "scatter", "intensity", "key", "patron"]
+    },
+    {
+      "id": 24,
+      "name": "Play the Perfect Courtier",
+      "essence": "Master indirection. Flatter, yield to superiors, assert power obliquely.",
+      "when": ["corporate politics", "social navigation", "working with egos"],
+      "reversal": "Be direct when dealing with those who despise politics",
+      "keywords": ["courtier", "politics", "flatter", "subtle", "indirect", "navigate", "charm", "grace"]
+    },
+    {
+      "id": 25,
+      "name": "Re-Create Yourself",
+      "essence": "Don't accept the role society assigns. Forge a new identity.",
+      "when": ["personal branding", "career change", "reinvention", "image"],
+      "reversal": "Embrace your assigned role when authenticity builds trust",
+      "keywords": ["identity", "reinvent", "image", "persona", "create", "transform", "brand", "self"]
+    },
+    {
+      "id": 26,
+      "name": "Keep Your Hands Clean",
+      "essence": "Use others as scapegoats. Maintain a spotless appearance.",
+      "when": ["risky decisions", "blame", "reputation management", "dirty work"],
+      "reversal": "Take responsibility when owning mistakes builds credibility",
+      "keywords": ["clean", "blame", "scapegoat", "dirty", "responsible", "hands", "guilt", "innocent"]
+    },
+    {
+      "id": 27,
+      "name": "Play on People's Need to Believe to Create a Cultlike Following",
+      "essence": "Offer people a cause. They will follow with fervor.",
+      "when": ["leadership", "movements", "marketing", "influence"],
+      "reversal": "Appeal to reason when followers need practicality over faith",
+      "keywords": ["belief", "cult", "follow", "faith", "cause", "movement", "leader", "disciples"]
+    },
+    {
+      "id": 28,
+      "name": "Enter Action with Boldness",
+      "essence": "Hesitation creates problems. Bold mistakes are easier to correct than timid ones.",
+      "when": ["decisions", "action", "uncertainty", "risk"],
+      "reversal": "Be cautious when mistakes are irreversible",
+      "keywords": ["bold", "action", "hesitate", "timid", "decisive", "confident", "courage", "doubt"]
+    },
+    {
+      "id": 29,
+      "name": "Plan All the Way to the End",
+      "essence": "Consider all consequences. Don't be overwhelmed by circumstances.",
+      "when": ["planning", "strategy", "long-term thinking", "projects"],
+      "reversal": "Stay flexible when the end is genuinely unknowable",
+      "keywords": ["plan", "end", "consequence", "future", "foresee", "outcome", "strategy", "goal"]
+    },
+    {
+      "id": 30,
+      "name": "Make Your Accomplishments Seem Effortless",
+      "essence": "Conceal the toil behind your work. Teach no one your tricks.",
+      "when": ["impression management", "expertise", "mystique building"],
+      "reversal": "Show effort when relatability matters more than awe",
+      "keywords": ["effortless", "easy", "natural", "effort", "work", "hide", "talent", "mystique"]
+    },
+    {
+      "id": 31,
+      "name": "Control the Options: Get Others to Play with the Cards You Deal",
+      "essence": "Give choices that all serve you. They feel free but you win either way.",
+      "when": ["negotiation", "decision making", "influence", "control"],
+      "reversal": "Offer genuine choices when trust is more valuable than control",
+      "keywords": ["options", "control", "choose", "cards", "choice", "deal", "decide", "manipulate"]
+    },
+    {
+      "id": 32,
+      "name": "Play to People's Fantasies",
+      "essence": "Truth is ugly. Conjure romance and fantasy; people flock to dreams.",
+      "when": ["marketing", "persuasion", "leadership", "vision"],
+      "reversal": "Be truthful when reality serves your purpose better",
+      "keywords": ["fantasy", "dream", "truth", "reality", "vision", "hope", "promise", "imagine"]
+    },
+    {
+      "id": 33,
+      "name": "Discover Each Man's Thumbscrew",
+      "essence": "Everyone has a weakness. Find it and you have leverage.",
+      "when": ["negotiation", "influence", "persuasion", "control"],
+      "reversal": "Ignore weaknesses when mutual benefit is the stronger play",
+      "keywords": ["weakness", "leverage", "pressure", "vulnerable", "secret", "insecurity", "need", "exploit"]
+    },
+    {
+      "id": 34,
+      "name": "Be Royal in Your Own Fashion: Act Like a King to Be Treated Like One",
+      "essence": "Act with self-respect. Appear destined for great things.",
+      "when": ["self-presentation", "confidence", "negotiations", "leadership"],
+      "reversal": "Be humble when humility opens more doors than regality",
+      "keywords": ["royal", "king", "confidence", "respect", "dignity", "crown", "treat", "act"]
+    },
+    {
+      "id": 35,
+      "name": "Master the Art of Timing",
+      "essence": "Never seem hurried. Detect the spirit of the times. Strike when ripe.",
+      "when": ["decisions", "launches", "negotiations", "patience"],
+      "reversal": "Move quickly when delay means missing the window",
+      "keywords": ["timing", "patience", "wait", "moment", "opportunity", "rush", "hurry", "strike"]
+    },
+    {
+      "id": 36,
+      "name": "Disdain Things You Cannot Have: Ignoring Them is the Best Revenge",
+      "essence": "Acknowledging problems gives them credibility. Ignore and move on.",
+      "when": ["criticism", "loss", "unattainable goals", "enemies"],
+      "reversal": "Address problems when ignoring them causes greater damage",
+      "keywords": ["ignore", "disdain", "want", "revenge", "dismiss", "above", "beneath", "indifferent"]
+    },
+    {
+      "id": 37,
+      "name": "Create Compelling Spectacles",
+      "essence": "Striking imagery and symbols create an aura of power.",
+      "when": ["presentations", "leadership", "marketing", "presence"],
+      "reversal": "Be understated when spectacle would seem desperate",
+      "keywords": ["spectacle", "visual", "symbol", "drama", "show", "image", "display", "impressive"]
+    },
+    {
+      "id": 38,
+      "name": "Think as You Like but Behave Like Others",
+      "essence": "Flaunting unconventional ideas draws attack. Blend in, share only with tolerant allies.",
+      "when": ["conformity", "survival", "working in groups", "fitting in"],
+      "reversal": "Stand out when originality is rewarded over conformity",
+      "keywords": ["conform", "blend", "different", "fit in", "hide", "normal", "conventional", "unique"]
+    },
+    {
+      "id": 39,
+      "name": "Stir Up Waters to Catch Fish",
+      "essence": "Anger and emotion are counterproductive. Make enemies emotional, stay calm.",
+      "when": ["conflict", "negotiation", "competition", "provocation"],
+      "reversal": "Stay calm always; this law has no reversal",
+      "keywords": ["anger", "emotion", "calm", "provoke", "stir", "rational", "upset", "rattle"]
+    },
+    {
+      "id": 40,
+      "name": "Despise the Free Lunch",
+      "essence": "What is free hides costs. Pay your way to stay clear of obligation.",
+      "when": ["deals", "gifts", "offers", "negotiations"],
+      "reversal": "Accept gifts when refusing would cause greater offense",
+      "keywords": ["free", "gift", "pay", "cost", "obligation", "debt", "generous", "strings"]
+    },
+    {
+      "id": 41,
+      "name": "Avoid Stepping into a Great Man's Shoes",
+      "essence": "Successors to greatness must outshine doubly. Establish your own identity.",
+      "when": ["succession", "following legends", "new roles", "comparison"],
+      "reversal": "Embrace the predecessor's legacy when it strengthens your position",
+      "keywords": ["successor", "predecessor", "shadow", "legacy", "follow", "shoes", "compare", "original"]
+    },
+    {
+      "id": 42,
+      "name": "Strike the Shepherd and the Sheep Will Scatter",
+      "essence": "Trouble traces to individuals. Neutralize the source, others follow.",
+      "when": ["opposition", "groups", "conflict", "leadership targeting"],
+      "reversal": "Convert the shepherd when their followers are the real prize",
+      "keywords": ["leader", "source", "shepherd", "group", "isolate", "neutralize", "head", "followers"]
+    },
+    {
+      "id": 43,
+      "name": "Work on the Hearts and Minds of Others",
+      "essence": "Coercion breeds resistance. Seduce people to want to move in your direction.",
+      "when": ["influence", "leadership", "persuasion", "motivation"],
+      "reversal": "Use coercion when time is short and resistance is weak",
+      "keywords": ["hearts", "minds", "seduce", "persuade", "influence", "coerce", "motivate", "inspire"]
+    },
+    {
+      "id": 44,
+      "name": "Disarm and Infuriate with the Mirror Effect",
+      "essence": "Mirror enemies' actions. It mocks them and makes them overreact.",
+      "when": ["conflict", "competition", "defense", "psychological warfare"],
+      "reversal": "Create original responses when mirroring seems weak",
+      "keywords": ["mirror", "copy", "reflect", "mock", "imitate", "enemy", "disarm", "infuriate"]
+    },
+    {
+      "id": 45,
+      "name": "Preach the Need for Change, but Never Reform Too Much at Once",
+      "essence": "Too much innovation is traumatic. Make change feel like improvement on the past.",
+      "when": ["leadership", "change management", "new roles", "reform"],
+      "reversal": "Reform drastically when the old order is universally despised",
+      "keywords": ["change", "reform", "new", "tradition", "gradual", "innovation", "past", "improve"]
+    },
+    {
+      "id": 46,
+      "name": "Never Appear Too Perfect",
+      "essence": "Envy creates silent enemies. Display occasional defects to appear human.",
+      "when": ["success", "relationships", "leadership", "likability"],
+      "reversal": "Appear perfect when awe is needed more than relatability",
+      "keywords": ["perfect", "flaws", "envy", "human", "defects", "humble", "relatable", "weakness"]
+    },
+    {
+      "id": 47,
+      "name": "Do Not Go Past the Mark You Aimed For; In Victory, Learn When to Stop",
+      "essence": "Overconfidence in victory creates new enemies. Set a goal, reach it, stop.",
+      "when": ["success", "winning", "negotiation", "ambition"],
+      "reversal": "Press advantage when stopping would allow recovery",
+      "keywords": ["victory", "stop", "overreach", "goal", "enough", "ambition", "greedy", "success"]
+    },
+    {
+      "id": 48,
+      "name": "Assume Formlessness",
+      "essence": "Be fluid and adaptable. Rigid plans and forms invite attack.",
+      "when": ["strategy", "adaptation", "survival", "flexibility"],
+      "reversal": "Take a fixed form when stability is needed to build",
+      "keywords": ["formless", "adapt", "flexible", "change", "rigid", "fluid", "water", "shape"]
+    }
+  ],
+  "quotes": [
+    "Good... good...",
+    "Everything is proceeding as I have foreseen.",
+    "Unlimited power!",
+    "The dark side is a pathway to many abilities some consider to be... unnatural.",
+    "Do it."
+  ]
+}
