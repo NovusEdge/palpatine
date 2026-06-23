@@ -29,10 +29,10 @@ Invoke `/palpatine` with any situation, question, or text to get strategic advic
 
 ## How it works
 
-1. Parses your input for themes and keywords
-2. Searches 48 indexed laws for matches
-3. Returns 1-3 relevant laws with specific, actionable advice
-4. Signs off with a Palpatine quote
+1. Maps players, interests, and leverage points
+2. Matches 1-3 applicable laws from the 48
+3. Returns structured analysis + numbered action plan with timing
+4. Flags risks and reversal scenarios
 
 No moralizing. No disclaimers. Just strategy.
 
@@ -40,13 +40,13 @@ No moralizing. No disclaimers. Just strategy.
 
 **From marketplace (recommended):**
 ```bash
-/plugin marketplace add youruser/palpatine
+/plugin marketplace add novusedge/palpatine
 /plugin install palpatine
 ```
 
 **Manual:**
 ```bash
-git clone https://github.com/youruser/palpatine ~/.claude/skills/palpatine
+git clone https://github.com/NovusEdge/palpatine ~/.claude/skills/palpatine
 ```
 
 ## Always-On Mode
