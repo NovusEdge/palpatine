@@ -1,6 +1,6 @@
 ---
 name: palpatine
-description: Apply the 48 Laws of Power to any situation. Advise, analyze text, or write strategically.
+description: "\"Unlimited power!\" Your personal Sith Lord advisor. 48 Laws of Power for office politics, negotiations, and bending the galaxy to your will."
 ---
 
 # Palpatine

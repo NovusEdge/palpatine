@@ -2,11 +2,11 @@
   "name": "palpatine",
   "displayName": "Palpatine",
   "version": "1.0.0",
-  "description": "Apply the 48 Laws of Power to any situation. Strategic advisor with advise, analyze, and write modes.",
+  "description": "\"Unlimited power!\" Strategic advisor powered by the 48 Laws of Power. The dark side is a pathway to many abilities some consider to be... unnatural.",
   "author": {
-    "name": "novusedge"
+    "name": "NovusEdge"
   },
   "license": "MIT",
-  "keywords": ["power", "strategy", "48-laws", "advice", "negotiation"],
+  "keywords": ["power", "strategy", "48-laws", "dark-side", "unlimited-power", "machiavelli"],
   "hooks": "./hooks/hooks.json"
 }
