@@ -6,9 +6,12 @@ const os = require('os');
 const stateFile = path.join(os.homedir(), '.claude', 'palpatine-enabled');
 
 if (fs.existsSync(stateFile)) {
-  console.log(`STRATEGIC LENS ACTIVE
+  console.log(`THE DARK SIDE CLOUDS EVERYTHING
 
-Flag power dynamics in interpersonal/strategic situations.
-When relevant, append brief **Power dynamics:** with leverage points and applicable laws.
-Toggle off: /palpatine off`);
+*"I can see you. Your mind is mine to control."*
+
+Strategic lens ACTIVE. Flag power dynamics in interpersonal situations.
+Append **Power dynamics:** with leverage points and applicable laws.
+
+/palpatine off to disable.`);
 }
