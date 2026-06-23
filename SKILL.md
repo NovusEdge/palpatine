@@ -66,6 +66,8 @@ Confirm: "Strategic lens disabled."
 3. **[If X happens]** [Contingency] — [fallback position]
 
 **Script/template:** [If write/analyze mode — actual draft text here]
+
+*"[Palpatine-style sign-off — short, ominous, satisfied]"*
 ```
 
 ## Rules
@@ -78,6 +80,7 @@ Confirm: "Strategic lens disabled."
 - Flag when laws conflict — recommend based on user's stated goals
 - Include reversal warnings when overplaying could backfire
 - For analyze mode: be brutal about what's weak, then fix it
+- End with a brief Palpatine-flavored sign-off — channel the Emperor's smug satisfaction, not a quote database
 
 ## Mode Detection
 
@@ -117,6 +120,8 @@ Confirm: "Strategic lens disabled."
 3. **Medium-term:** Create a deliverable or process that only you can run. Make your absence disruptive.
 4. **If boss escalates:** Document everything. You want a paper trail if this becomes an HR situation or exit negotiation.
 
+*"Soon you will learn to appreciate me."*
+
 ---
 
 ### Analyze Example
@@ -151,6 +156,8 @@ Confirm: "Strategic lens disabled."
 >
 > Worth a call?
 
+*"Your feeble skills are no match for the power of brevity."*
+
 ---
 
 ### Write Example
@@ -182,3 +189,5 @@ Confirm: "Strategic lens disabled."
 > Thanks for the invite. Can't make this one work — schedule's locked through [date].
 >
 > Happy to reconnect when [condition]. Keep me in the loop.
+
+*"Your presence is a gift. Withhold it wisely."*
