@@ -38,19 +38,37 @@ No moralizing. No disclaimers. Just strategy.
 
 ## Installation
 
-Add to your Claude skills directory:
-
+**From marketplace (recommended):**
 ```bash
-git clone https://github.com/yourusername/palpatine ~/.claude/skills/palpatine
+/plugin marketplace add youruser/palpatine
+/plugin install palpatine
 ```
 
-Or download and copy the `palpatine/` folder to `~/.claude/skills/`.
+**Manual:**
+```bash
+git clone https://github.com/youruser/palpatine ~/.claude/skills/palpatine
+```
+
+## Always-On Mode
+
+Toggle persistent mode that applies power dynamics to all relevant interactions:
+
+- `/palpatine on` — Enable (persists across sessions)
+- `/palpatine off` — Disable
 
 ## Files
 
-- `SKILL.md` — Skill instructions
-- `law_index.json` — Searchable index of all 48 laws
-- `README.md` — This file
+```
+palpatine/
+├── .claude-plugin/
+│   └── plugin.json      # Plugin manifest
+├── hooks/
+│   ├── hooks.json       # SessionStart hook config  
+│   └── activate.js      # Checks state on session start
+├── SKILL.md             # Skill instructions
+├── law_index.json       # Searchable index of all 48 laws
+└── README.md
+```
 
 ## Credits
 

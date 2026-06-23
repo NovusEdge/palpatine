@@ -1,0 +1,12 @@
+{
+  "name": "palpatine",
+  "displayName": "Palpatine",
+  "version": "1.0.0",
+  "description": "Apply the 48 Laws of Power to any situation. Strategic advisor with advise, analyze, and write modes.",
+  "author": {
+    "name": "novusedge"
+  },
+  "license": "MIT",
+  "keywords": ["power", "strategy", "48-laws", "advice", "negotiation"],
+  "hooks": "./hooks/hooks.json"
+}
