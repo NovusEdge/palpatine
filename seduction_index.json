@@ -1,0 +1,241 @@
+{
+  "seducer_types": [
+    {
+      "id": 1,
+      "name": "The Siren",
+      "essence": "Pure sensory overload. Fantasy made flesh. Promise of adventure and escape.",
+      "when": "Target is bored, trapped in routine, craving intensity",
+      "keywords": ["allure", "fantasy", "escape", "adventure", "sensory", "intoxicate"]
+    },
+    {
+      "id": 2,
+      "name": "The Rake",
+      "essence": "Relentless pursuit. Single-minded devotion that overwhelms resistance.",
+      "when": "Target doubts their desirability, wants to feel chosen",
+      "keywords": ["pursue", "relentless", "chase", "devotion", "obsessed", "intensity"]
+    },
+    {
+      "id": 3,
+      "name": "The Ideal Lover",
+      "essence": "Mirror their fantasies back. Become what they secretly want.",
+      "when": "Target has unfulfilled romantic ideals, gaps in their life",
+      "keywords": ["mirror", "fantasy", "ideal", "perfect", "fulfill", "dream"]
+    },
+    {
+      "id": 4,
+      "name": "The Dandy",
+      "essence": "Ambiguity and androgyny. Defy categories. Intrigue through mystery.",
+      "when": "Target bored by predictable types, drawn to the unconventional",
+      "keywords": ["ambiguous", "mysterious", "different", "unique", "unconventional"]
+    },
+    {
+      "id": 5,
+      "name": "The Natural",
+      "essence": "Childlike spontaneity. Disarm with apparent innocence and authenticity.",
+      "when": "Target suspicious of sophistication, nostalgic, guarded",
+      "keywords": ["innocent", "spontaneous", "authentic", "disarm", "childlike", "genuine"]
+    },
+    {
+      "id": 6,
+      "name": "The Coquette",
+      "essence": "Hot and cold. Give then withdraw. Create addictive uncertainty.",
+      "when": "Target too confident, needs to be destabilized, thrives on challenge",
+      "keywords": ["hot cold", "withdraw", "tease", "uncertainty", "chase", "elusive"]
+    },
+    {
+      "id": 7,
+      "name": "The Charmer",
+      "essence": "Make them feel like the center of the universe. Pure attention.",
+      "when": "Target insecure, wants validation, needs to feel special",
+      "keywords": ["charm", "attention", "validate", "listen", "flatter", "focus"]
+    },
+    {
+      "id": 8,
+      "name": "The Charismatic",
+      "essence": "Absolute conviction. Your certainty becomes their faith.",
+      "when": "Target needs direction, lost, seeking meaning or leadership",
+      "keywords": ["conviction", "faith", "leader", "vision", "certainty", "follow"]
+    },
+    {
+      "id": 9,
+      "name": "The Star",
+      "essence": "Theatrical distance. Larger than life. They project their dreams onto you.",
+      "when": "Target needs an idol, wants to worship, seeks the extraordinary",
+      "keywords": ["star", "idol", "distance", "project", "worship", "celebrity"]
+    }
+  ],
+  "phases": [
+    {
+      "phase": "I: Separation",
+      "steps": [
+        {
+          "id": 1,
+          "name": "Choose the Right Victim",
+          "essence": "Target the dissatisfied, the bored, those with gaps to fill.",
+          "keywords": ["target", "victim", "choose", "vulnerable", "bored", "gap"]
+        },
+        {
+          "id": 2,
+          "name": "Create a False Sense of Security",
+          "essence": "Approach indirectly. Be friend first, let guard drop.",
+          "keywords": ["friend", "safe", "trust", "indirect", "guard", "harmless"]
+        },
+        {
+          "id": 3,
+          "name": "Send Mixed Signals",
+          "essence": "Confuse with contradictions. Mystery creates obsession.",
+          "keywords": ["mixed", "confuse", "contradiction", "mystery", "unclear"]
+        },
+        {
+          "id": 4,
+          "name": "Appear to Be an Object of Desire",
+          "essence": "Create triangles. Others wanting you makes you more valuable.",
+          "keywords": ["triangle", "jealousy", "others", "desirable", "competition"]
+        },
+        {
+          "id": 5,
+          "name": "Create a Need — Stir Anxiety and Discontent",
+          "essence": "Make them aware of what they're missing before you offer it.",
+          "keywords": ["need", "anxiety", "discontent", "missing", "awareness"]
+        },
+        {
+          "id": 6,
+          "name": "Master the Art of Insinuation",
+          "essence": "Plant ideas without stating them. Let them think it was theirs.",
+          "keywords": ["insinuate", "hint", "suggest", "subtle", "plant", "indirect"]
+        },
+        {
+          "id": 7,
+          "name": "Enter Their Spirit",
+          "essence": "Mirror their moods, values, desires. Become their reflection.",
+          "keywords": ["mirror", "match", "spirit", "values", "reflect", "sync"]
+        },
+        {
+          "id": 8,
+          "name": "Create Temptation",
+          "essence": "Dangle what they want. Keep it just out of reach.",
+          "keywords": ["tempt", "dangle", "desire", "reach", "want", "forbidden"]
+        }
+      ]
+    },
+    {
+      "phase": "II: Lead Astray — Creating Pleasure and Confusion",
+      "steps": [
+        {
+          "id": 9,
+          "name": "Keep Them in Suspense",
+          "essence": "Unpredictability is addictive. Never let them know what's next.",
+          "keywords": ["suspense", "unpredictable", "surprise", "uncertain", "addicted"]
+        },
+        {
+          "id": 10,
+          "name": "Use the Demonic Power of Words",
+          "essence": "Speak to their unconscious. Flattery, promises, possibility.",
+          "keywords": ["words", "speak", "flatter", "promise", "unconscious"]
+        },
+        {
+          "id": 11,
+          "name": "Pay Attention to Detail",
+          "essence": "Small thoughtful gestures outweigh grand ones. Notice everything.",
+          "keywords": ["detail", "notice", "gesture", "thoughtful", "specific"]
+        },
+        {
+          "id": 12,
+          "name": "Poeticize Your Presence",
+          "essence": "Create memorable moments. Orchestrate experiences they won't forget.",
+          "keywords": ["memorable", "moment", "experience", "romance", "special"]
+        },
+        {
+          "id": 13,
+          "name": "Disarm with Strategic Weakness",
+          "essence": "Show vulnerability. Perfection is suspicious. Weakness creates intimacy.",
+          "keywords": ["vulnerable", "weakness", "disarm", "human", "imperfect"]
+        },
+        {
+          "id": 14,
+          "name": "Confuse Desire and Reality",
+          "essence": "Blur fantasy and real. Make them unsure where one ends and other begins.",
+          "keywords": ["fantasy", "reality", "blur", "dream", "confuse"]
+        },
+        {
+          "id": 15,
+          "name": "Isolate the Victim",
+          "essence": "Cut ties to their support. You become their whole world.",
+          "keywords": ["isolate", "alone", "separate", "depend", "exclusive"]
+        }
+      ]
+    },
+    {
+      "phase": "III: The Precipice — Deepening the Effect",
+      "steps": [
+        {
+          "id": 16,
+          "name": "Prove Yourself",
+          "essence": "Sacrifice something for them. Action over words. Blood over ink.",
+          "keywords": ["prove", "sacrifice", "action", "demonstrate", "commit"]
+        },
+        {
+          "id": 17,
+          "name": "Effect a Regression",
+          "essence": "Trigger childhood emotions. Parent/child dynamics run deep.",
+          "keywords": ["regress", "childhood", "parent", "emotional", "primal"]
+        },
+        {
+          "id": 18,
+          "name": "Stir Up the Transgressive",
+          "essence": "Forbidden fruit. Taboo creates irresistible pull.",
+          "keywords": ["forbidden", "taboo", "transgress", "rule", "break"]
+        },
+        {
+          "id": 19,
+          "name": "Use Spiritual Lures",
+          "essence": "Elevate beyond physical. Meaning, purpose, transcendence.",
+          "keywords": ["spiritual", "meaning", "purpose", "transcend", "deep"]
+        },
+        {
+          "id": 20,
+          "name": "Mix Pleasure with Pain",
+          "essence": "Sweet and bitter. Pleasure without pain becomes boring.",
+          "keywords": ["pain", "pleasure", "bitter", "sweet", "contrast"]
+        }
+      ]
+    },
+    {
+      "phase": "IV: Moving In for the Kill",
+      "steps": [
+        {
+          "id": 21,
+          "name": "Give Them Space to Fall",
+          "essence": "Strategic withdrawal. Absence makes obsession grow.",
+          "keywords": ["withdraw", "space", "absence", "chase", "miss"]
+        },
+        {
+          "id": 22,
+          "name": "Use Physical Lures",
+          "essence": "Build physical tension. Proximity, touch, anticipation.",
+          "keywords": ["physical", "touch", "tension", "proximity", "body"]
+        },
+        {
+          "id": 23,
+          "name": "Master the Art of the Bold Move",
+          "essence": "Timidity is fatal. When the moment comes, act decisively.",
+          "keywords": ["bold", "decisive", "moment", "act", "courage"]
+        },
+        {
+          "id": 24,
+          "name": "Beware the Aftereffects",
+          "essence": "Post-conquest is dangerous. Either commit or exit cleanly.",
+          "keywords": ["after", "aftermath", "exit", "maintain", "consequences"]
+        }
+      ]
+    }
+  ],
+  "anti_seducer_traits": [
+    "Talking too much about yourself",
+    "Insecurity that seeks constant reassurance",
+    "Impatience and rushing",
+    "Self-absorption and obliviousness",
+    "Lack of generosity",
+    "Humorlessness and excessive seriousness"
+  ]
+}

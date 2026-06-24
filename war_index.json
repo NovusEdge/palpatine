@@ -1,0 +1,235 @@
+{
+  "strategies": [
+    {
+      "id": 1,
+      "name": "Declare War on Your Enemies (Polarity Strategy)",
+      "essence": "Know exactly who threatens you. Unclear enemies create unclear responses.",
+      "when": ["confused about opposition", "vague threats", "need to focus"],
+      "keywords": ["enemy", "threat", "unclear", "opposition", "identify", "target"]
+    },
+    {
+      "id": 2,
+      "name": "Do Not Fight the Last War (Guerrilla-Mind Strategy)",
+      "essence": "Past victories become future defeats. Adapt to present conditions.",
+      "when": ["repeated tactics failing", "outdated approach", "things have changed"],
+      "keywords": ["adapt", "change", "outdated", "old", "past", "stuck", "repeat"]
+    },
+    {
+      "id": 3,
+      "name": "Presence of Mind (Counterbalance Strategy)",
+      "essence": "Detach emotionally from the chaos. Clarity requires distance.",
+      "when": ["panicking", "emotional", "reactive", "overwhelmed"],
+      "keywords": ["panic", "emotion", "calm", "chaos", "clear", "overwhelmed", "reactive"]
+    },
+    {
+      "id": 4,
+      "name": "Create a Sense of Urgency (Death-Ground Strategy)",
+      "essence": "Burn the boats. When retreat is impossible, you fight with everything.",
+      "when": ["need motivation", "team complacent", "must commit fully"],
+      "keywords": ["urgent", "commit", "burn boats", "no retreat", "desperate", "all in"]
+    },
+    {
+      "id": 5,
+      "name": "Avoid Groupthink (Command-and-Control Strategy)",
+      "essence": "Committees produce compromise. One clear voice produces action.",
+      "when": ["too many opinions", "decision paralysis", "need clarity"],
+      "keywords": ["committee", "consensus", "decision", "paralysis", "leadership", "control"]
+    },
+    {
+      "id": 6,
+      "name": "Segment Your Forces (Controlled-Chaos Strategy)",
+      "essence": "Small, autonomous units adapt faster than monolithic forces.",
+      "when": ["large team", "need agility", "unpredictable environment"],
+      "keywords": ["team", "agile", "small", "autonomous", "flexible", "adapt"]
+    },
+    {
+      "id": 7,
+      "name": "Transform Your War into a Crusade (Morale Strategy)",
+      "essence": "Give people a cause worth fighting for. Mercenaries fight differently than believers.",
+      "when": ["low morale", "need buy-in", "team disconnected"],
+      "keywords": ["morale", "mission", "purpose", "cause", "motivation", "belief"]
+    },
+    {
+      "id": 8,
+      "name": "Pick Your Battles Carefully (Perfect-Economy Strategy)",
+      "essence": "Every battle costs resources. Only fight when the prize exceeds the price.",
+      "when": ["limited resources", "choosing priorities", "overextended"],
+      "keywords": ["resources", "priority", "cost", "worth it", "exhausted", "choose"]
+    },
+    {
+      "id": 9,
+      "name": "Turn the Tables (Counterattack Strategy)",
+      "essence": "Let them attack first. Absorb the blow, then strike when they're extended.",
+      "when": ["under attack", "defensive position", "waiting for opening"],
+      "keywords": ["attack", "defend", "counter", "wait", "strike back", "patience"]
+    },
+    {
+      "id": 10,
+      "name": "Make Defense a Pleasure (Deterrence Strategy)",
+      "essence": "Make attacking you so costly that they choose easier targets.",
+      "when": ["need deterrence", "protecting position", "weaker but entrenched"],
+      "keywords": ["deter", "defense", "costly", "protect", "fortress", "impregnable"]
+    },
+    {
+      "id": 11,
+      "name": "Lose Battles but Win the War (Grand Strategy)",
+      "essence": "Sacrifice pieces for position. The endgame matters more than any single battle.",
+      "when": ["taking a loss", "long game", "strategic sacrifice"],
+      "keywords": ["sacrifice", "long term", "strategic", "lose", "win war", "endgame"]
+    },
+    {
+      "id": 12,
+      "name": "Know Your Enemy (Intelligence Strategy)",
+      "essence": "Study their mind, not just their moves. Predict the person, predict the action.",
+      "when": ["facing unknown opponent", "need to predict", "outmatched"],
+      "keywords": ["enemy", "study", "predict", "understand", "psychology", "intel"]
+    },
+    {
+      "id": 13,
+      "name": "Overwhelm with Speed (Blitzkrieg Strategy)",
+      "essence": "Move faster than they can respond. Velocity creates its own momentum.",
+      "when": ["have initiative", "time advantage", "need to overwhelm"],
+      "keywords": ["fast", "speed", "overwhelm", "blitz", "momentum", "surprise"]
+    },
+    {
+      "id": 14,
+      "name": "Control the Dynamic (Forcing Strategy)",
+      "essence": "Dictate the tempo. When you choose when and where, you've already won.",
+      "when": ["losing control", "reactive position", "need to set terms"],
+      "keywords": ["control", "tempo", "initiative", "terms", "dictate", "timing"]
+    },
+    {
+      "id": 15,
+      "name": "Hit Them Where It Hurts (Center-of-Gravity Strategy)",
+      "essence": "Find what they depend on. Strike the foundation, not the walls.",
+      "when": ["large opponent", "need leverage", "limited shots"],
+      "keywords": ["weakness", "center", "foundation", "critical", "leverage", "vulnerable"]
+    },
+    {
+      "id": 16,
+      "name": "Defeat Them in Detail (Divide-and-Conquer Strategy)",
+      "essence": "Never fight the whole. Isolate and destroy piece by piece.",
+      "when": ["outnumbered", "facing coalition", "complex opposition"],
+      "keywords": ["divide", "isolate", "separate", "coalition", "piece by piece"]
+    },
+    {
+      "id": 17,
+      "name": "Defeat from Within (Trojan Horse Strategy)",
+      "essence": "The strongest walls fall from inside. Plant your influence before you need it.",
+      "when": ["can't attack directly", "need inside access", "playing long game"],
+      "keywords": ["inside", "infiltrate", "plant", "mole", "within", "access"]
+    },
+    {
+      "id": 18,
+      "name": "Expose and Attack Soft Flank (Turning Strategy)",
+      "essence": "Go around, not through. Find where they're not looking.",
+      "when": ["frontal assault failing", "need indirect approach", "strong defense"],
+      "keywords": ["flank", "indirect", "around", "side", "unexpected", "blind spot"]
+    },
+    {
+      "id": 19,
+      "name": "Envelop the Enemy (Annihilation Strategy)",
+      "essence": "Cut off all options. When they can't retreat, they surrender or die.",
+      "when": ["final confrontation", "need complete victory", "no mercy"],
+      "keywords": ["surround", "cut off", "no escape", "annihilate", "complete", "finish"]
+    },
+    {
+      "id": 20,
+      "name": "Maneuver Them into Weakness (Ripening Strategy)",
+      "essence": "Make them weaker before you strike. Patience is a weapon.",
+      "when": ["enemy too strong", "need to weaken first", "playing long game"],
+      "keywords": ["weaken", "wait", "patience", "prepare", "ripen", "timing"]
+    },
+    {
+      "id": 21,
+      "name": "Negotiate While Advancing (Diplomatic-War Strategy)",
+      "essence": "Talk peace while preparing war. Words buy time, actions win.",
+      "when": ["negotiating", "buying time", "deception useful"],
+      "keywords": ["negotiate", "talk", "peace", "advance", "dual track", "stall"]
+    },
+    {
+      "id": 22,
+      "name": "Know How to End Things (Exit Strategy)",
+      "essence": "Enter with the exit in mind. Victory without endgame is just chaos.",
+      "when": ["starting conflict", "need to plan end", "avoiding quagmire"],
+      "keywords": ["exit", "end", "finish", "endgame", "closure", "when to stop"]
+    },
+    {
+      "id": 23,
+      "name": "Weave Fact and Fiction (Misperception Strategy)",
+      "essence": "Control what they believe. Reality is what they perceive.",
+      "when": ["need deception", "information war", "controlling narrative"],
+      "keywords": ["deceive", "perception", "narrative", "misinform", "confuse", "believe"]
+    },
+    {
+      "id": 24,
+      "name": "Take the Line of Least Expectation (Ordinary-Extraordinary Strategy)",
+      "essence": "Do what they'd never predict. The obvious move is the vulnerable move.",
+      "when": ["predictable patterns", "need surprise", "expected response failing"],
+      "keywords": ["surprise", "unexpected", "unpredictable", "ordinary", "obvious"]
+    },
+    {
+      "id": 25,
+      "name": "Occupy the Moral High Ground (Righteous Strategy)",
+      "essence": "Make your cause just. Even if it isn't, make it look that way.",
+      "when": ["public battle", "need legitimacy", "opponent vulnerable morally"],
+      "keywords": ["moral", "righteous", "just", "cause", "legitimacy", "virtue"]
+    },
+    {
+      "id": 26,
+      "name": "Deny Them Targets (Void Strategy)",
+      "essence": "Be formless. What they can't hit, they can't hurt.",
+      "when": ["outgunned", "need to survive", "guerrilla position"],
+      "keywords": ["formless", "void", "elusive", "target", "hide", "guerrilla"]
+    },
+    {
+      "id": 27,
+      "name": "Seem to Work for Others' Interests (Alliance Strategy)",
+      "essence": "Your agenda hidden inside their cause. They fight for you willingly.",
+      "when": ["need allies", "can't act alone", "building coalition"],
+      "keywords": ["alliance", "ally", "coalition", "interests", "mutual", "partnership"]
+    },
+    {
+      "id": 28,
+      "name": "Give Them Rope to Hang Themselves (One-Upmanship Strategy)",
+      "essence": "Let their arrogance destroy them. Overconfidence precedes the fall.",
+      "when": ["arrogant opponent", "they're overextending", "patience available"],
+      "keywords": ["arrogant", "overconfident", "rope", "self-destruct", "wait"]
+    },
+    {
+      "id": 29,
+      "name": "Take Small Bites (Fait Accompli Strategy)",
+      "essence": "Incremental gains avoid triggering response. Done before they notice.",
+      "when": ["gradual takeover", "avoiding confrontation", "salami tactics"],
+      "keywords": ["incremental", "gradual", "small", "unnoticed", "creep", "slow"]
+    },
+    {
+      "id": 30,
+      "name": "Penetrate Their Minds (Communication Strategy)",
+      "essence": "Words as weapons. What they think determines what they do.",
+      "when": ["need to influence", "propaganda", "psychological warfare"],
+      "keywords": ["message", "communication", "influence", "propaganda", "minds", "narrative"]
+    },
+    {
+      "id": 31,
+      "name": "Destroy from Within (Inner-Front Strategy)",
+      "essence": "Create internal dissent. Organizations collapse from the inside.",
+      "when": ["can't attack directly", "target has internal tensions", "long game"],
+      "keywords": ["internal", "dissent", "division", "within", "collapse", "discord"]
+    },
+    {
+      "id": 32,
+      "name": "Dominate While Seeming to Submit (Passive-Aggression Strategy)",
+      "essence": "Surface compliance, hidden defiance. Obey the letter, violate the spirit.",
+      "when": ["weaker position", "can't openly resist", "need to undermine"],
+      "keywords": ["passive", "submit", "undermine", "comply", "hidden", "resist"]
+    },
+    {
+      "id": 33,
+      "name": "Sow Uncertainty and Panic (Terror Strategy)",
+      "essence": "Fear multiplies your power. One dramatic act echoes endlessly.",
+      "when": ["need deterrence", "limited resources", "psychological impact"],
+      "keywords": ["fear", "panic", "terror", "uncertainty", "dramatic", "impact"]
+    }
+  ]
+}
