@@ -61,7 +61,7 @@ for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
   if (done.passes(results)) return terminate("done", results);
 
   const gap = synthesizeGap(results);            // what's still missing
-  if (gap === lastGap) return terminate("stalled", gap);  // doom-loop guard — no progress
+  if (gap === lastGap) return terminate("stalled", gap);  // doom-loop guard (best-effort; maxWaves is the hard stop)
   lastGap = gap;
   plan = replan(gap);                            // next wave attacks only the remainder
 }
@@ -82,7 +82,7 @@ const WORKER_SCHEMA = {
     evidence:   { type: "string", description: "Where the result lives — path, output, citation" },
     confidence: { type: "string", enum: ["high", "medium", "low"] }
   },
-  required: ["result", "done", "gap", "confidence"]
+  required: ["result", "done", "gap", "evidence", "confidence"]
 }
 ```
 
@@ -92,7 +92,7 @@ const WORKER_SCHEMA = {
 2. **The governor is law.** Every dimension capped before the first dispatch. "Unlimited" is a theme, not a runtime setting.
 3. **Parallel when independent, sequenced when dependent.** Fan out work that doesn't touch; order work that chains.
 4. **Leaf agents don't spawn subagents.** The main loop owns all recursion — depth lives in *waves*, not nesting. (Consistent with `/palpatine:adversary` Rule 5. Bounded depth ≠ infinite descent.)
-5. **Doom-loop guard.** Two waves, same gap, zero progress → stop. Repetition isn't persistence; it's a stuck actuator.
+5. **Doom-loop guard (best-effort).** Two waves, same gap → stop early. The gap is a semantic summary, so this equality test is a heuristic, not a proof — `maxWaves` (Rule 2) is the hard stop that always holds; the guard only saves wasted waves when a stall repeats verbatim. Repetition isn't persistence; it's a stuck actuator.
 6. **Rate discipline.** Cap wave width; stagger if the host throttles. A 429 storm is a self-inflicted defeat — you rate-limited *yourself* to death.
 7. **Cheapest sufficient model per worker.** Premium models on grunt work is wasted motion. Match the tool to the cut.
 8. **Escalate, never fail silent.** `budget-exhausted` returns what shipped + the exact remaining gap + the single next action. A quiet stall is worse than a loud stop.
