@@ -43,14 +43,15 @@ Decompose → dispatch a bounded wave → verify against the done-condition → 
 const done = defineAcceptanceCheck(objective);
 if (!done) return abort("No verifiable done-condition.");
 
-let plan = decompose(objective);   // independent → parallel; dependent → ordered
+let plan = decompose(objective);   // → dependency-LAYERED: a wave holds only independent tasks; dependents land in later waves
 let dispatched = 0, lastGap = null;
 
 for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
   const batch = plan.slice(0, Math.min(BUDGET.maxWidth, BUDGET.maxDispatch - dispatched));
   if (batch.length === 0) break;
 
-  // Parallel when independent. Sequence when each task needs the prior result.
+  // A wave is independent-only, so Promise.all is safe. Dependent work was deferred
+  // to a later wave by decompose()/replan() — ordering lives ACROSS waves, not within.
   const results = await Promise.all(batch.map(task => Agent({
     description: `Worker: ${task.name}`,
     prompt: workerPrompt(task, done),   // task + the acceptance check it must satisfy
@@ -90,7 +91,7 @@ const WORKER_SCHEMA = {
 
 1. **No done-condition, no launch.** Refuse blind objectives. Spinning forever is the failure mode, not the feature.
 2. **The governor is law.** Every dimension capped before the first dispatch. "Unlimited" is a theme, not a runtime setting.
-3. **Parallel when independent, sequenced when dependent.** Fan out work that doesn't touch; order work that chains.
+3. **Parallel within a wave, sequenced across waves.** A wave holds only mutually-independent tasks (fan out with `Promise.all`); `decompose`/`replan` layer dependent work into later waves so chained tasks never share a batch.
 4. **Leaf agents don't spawn subagents.** The main loop owns all recursion — depth lives in *waves*, not nesting. (Consistent with `/palpatine:adversary` Rule 5. Bounded depth ≠ infinite descent.)
 5. **Doom-loop guard (best-effort).** Two waves, same gap → stop early. The gap is a semantic summary, so this equality test is a heuristic, not a proof — `maxWaves` (Rule 2) is the hard stop that always holds; the guard only saves wasted waves when a stall repeats verbatim. Repetition isn't persistence; it's a stuck actuator.
 6. **Rate discipline.** Cap wave width; stagger if the host throttles. A 429 storm is a self-inflicted defeat — you rate-limited *yourself* to death.
