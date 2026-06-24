@@ -76,6 +76,7 @@ Match situation to book. Often blend. Output: actions only.
 | `/palpatine:defense` | Someone's working you → detection + counters |
 | `/palpatine:wargame` | "If I do X" → multi-turn simulation |
 | `/palpatine:adversary` | Subagent orchestration patterns |
+| `/palpatine:unlimited-power <objective>` | Recursive subagent waves until done-condition or budget cap |
 | `/palpatine:laws [query]` | Search 48 Laws of Power |
 | `/palpatine:war [query]` | Search 33 Strategies of War |
 | `/palpatine:seduce [query]` | Search Art of Seduction |
