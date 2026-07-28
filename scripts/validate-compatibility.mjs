@@ -24,7 +24,13 @@ function resolvesTo(relativeLink, relativeTarget) {
   const target = path.join(root, relativeTarget);
   try {
     check(fs.lstatSync(link).isSymbolicLink(), `${relativeLink} must be a symlink`);
-    check(fs.realpathSync(link) === fs.realpathSync(target), `${relativeLink} resolves incorrectly`);
+    const linkText = fs.readlinkSync(link);
+    check(!path.isAbsolute(linkText), `${relativeLink} must use a relative symlink`);
+    const resolvedLink = path.resolve(root, path.dirname(relativeLink), linkText);
+    check(
+      fs.realpathSync(resolvedLink) === fs.realpathSync(target),
+      `${relativeLink} resolves incorrectly`,
+    );
   } catch (error) {
     errors.push(`${relativeLink}: ${error.message}`);
   }
