@@ -31,6 +31,7 @@ process.stdin.on('end', () => {
 
 function extractUserMessage(data) {
   // Hook receives conversation context - extract latest user message
+  if (data.prompt) return data.prompt;
   if (data.user_message) return data.user_message;
   if (data.messages && data.messages.length > 0) {
     const last = data.messages[data.messages.length - 1];
@@ -40,7 +41,14 @@ function extractUserMessage(data) {
 }
 
 function loadLaws() {
-  const lawPath = path.join(__dirname, '..', 'law_index.json');
+  const lawPath = path.join(
+    __dirname,
+    '..',
+    'skills',
+    'laws',
+    'references',
+    'law_index.json',
+  );
   const raw = fs.readFileSync(lawPath, 'utf8');
   return JSON.parse(raw).laws;
 }
