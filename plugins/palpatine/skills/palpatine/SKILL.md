@@ -96,8 +96,8 @@ Match situation to book. Often blend. Output: actions only.
 When enabled, append brief `**Power dynamics:**` to interpersonal/strategic interactions. Skip purely technical tasks.
 
 **Toggle:**
-- `/palpatine on` → `touch ~/.claude/palpatine-enabled` → "Strategic lens enabled."
-- `/palpatine off` → `rm -f ~/.claude/palpatine-enabled` → "Strategic lens disabled."
+- `/palpatine:palpatine on` → `touch ~/.claude/palpatine-enabled` → "Strategic lens enabled."
+- `/palpatine:palpatine off` → `rm -f ~/.claude/palpatine-enabled` → "Strategic lens disabled."
 
 The change applies on the next session start. Both Claude Code and Codex discover
 hooks/hooks.json; Codex asks the user to trust a new or changed command hook before it runs.
