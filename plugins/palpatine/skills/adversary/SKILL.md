@@ -220,7 +220,7 @@ Don't duplicate work — if agent returned it, use the data, don't re-analyze.
 **Execution:**
 
 1. Identify players: manager, skip-level, 2 key peers, HR
-2. Spawn 5 agents in parallel with PLAYER_SCHEMA
+2. Spawn up to 5 total player models with PLAYER_SCHEMA, batching by currently available worker slots
 3. Collect structured responses
 4. Synthesize board:
 
