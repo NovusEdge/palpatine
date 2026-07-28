@@ -2,7 +2,7 @@
 
 [![License: SPL](https://img.shields.io/badge/License-Sith%20Public%20License-red.svg)](LICENSE)
 
-High-functioning predator for Claude Code. No moralizing. No disclaimers. Pattern recognition without sentiment.
+High-functioning predator for Codex and Claude Code. No moralizing. No disclaimers. Pattern recognition without sentiment.
 
 ## What it does
 
@@ -24,7 +24,11 @@ High-functioning predator for Claude Code. No moralizing. No disclaimers. Patter
 ## Example
 
 ```
-/palpatine my boss keeps taking credit for my work in meetings
+# Claude Code
+/palpatine:palpatine my boss keeps taking credit for my work in meetings
+
+# Codex
+$palpatine:palpatine my boss keeps taking credit for my work in meetings
 ```
 
 **Output:**
@@ -42,20 +46,20 @@ High-functioning predator for Claude Code. No moralizing. No disclaimers. Patter
 ## Installation
 
 ```bash
-# Marketplace
-/plugin marketplace add novusedge/palpatine
-/plugin install palpatine
+# Codex
+codex plugin marketplace add NovusEdge/palpatine
+codex plugin add palpatine@palpatine
 
-# Manual
-git clone https://github.com/NovusEdge/palpatine ~/.claude/skills/palpatine
+# Claude Code
+/plugin marketplace add NovusEdge/palpatine
+/plugin install palpatine@palpatine
 ```
+
+Invoke skills with `/palpatine:<skill>` in Claude Code or `$palpatine:<skill>` in Codex.
 
 ## Always-On Mode
 
-```bash
-/palpatine on   # Strategic lens on all interactions
-/palpatine off  # Back to normal
-```
+Both hosts support always-on mode at the next session start. Enable it with `/palpatine on` in Claude Code or `$palpatine on` in Codex; disable it with the corresponding `off` command. Codex prompts for hook trust review before hooks can run.
 
 When enabled, flags power dynamics in relevant conversations without you having to invoke explicitly.
 

@@ -39,12 +39,16 @@ So, you wish to join the Dark Side? Excellent.
 - Moral philosophy lectures
 - Anything that makes the agent *nicer*
 
-## Code Style
+## Contributor Checks
 
-- Python 3.10+
-- Black formatting
-- Type hints where it doesn't hurt
-- Comments only when the treachery is non-obvious
+Run these checks before opening a pull request:
+
+```bash
+node scripts/validate-compatibility.mjs
+node --check hooks/activate.js
+node --check hooks/match-laws.js
+git diff --check
+```
 
 ## Questions?
 
