@@ -1,0 +1,4 @@
+interface:
+  display_name: "Adversary Simulation"
+  short_description: "Model sophisticated opponents and multi-party dynamics"
+  default_prompt: "Use $palpatine:adversary to model the opposing players and synthesize their likely moves."

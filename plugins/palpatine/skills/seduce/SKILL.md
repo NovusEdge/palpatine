@@ -5,28 +5,30 @@ description: Quick reference for the Art of Seduction. Seducer types, 24-step pr
 
 # Seduction Reference
 
-Invoked via `/palpatine:seduce` or `/palpatine:seduce <query>`.
+Invoke with Claude Code `/palpatine:seduce` or `/palpatine:seduce <query>`, or Codex `$palpatine:seduce` or `$palpatine:seduce <query>`.
 
 ## Usage
 
-| Command | Action |
-|---------|--------|
-| `/palpatine:seduce` | Overview of types + phases |
-| `/palpatine:seduce siren` | Show seducer type |
-| `/palpatine:seduce 15` | Show step 15 (Isolate) |
-| `/palpatine:seduce hot cold` | Search by keyword |
+| Claude Code | Codex | Action |
+|-------------|-------|--------|
+| `/palpatine:seduce` | `$palpatine:seduce` | Overview of types + phases |
+| `/palpatine:seduce siren` | `$palpatine:seduce siren` | Show seducer type |
+| `/palpatine:seduce 15` | `$palpatine:seduce 15` | Show step 15 (Isolate) |
+| `/palpatine:seduce hot cold` | `$palpatine:seduce hot cold` | Search by keyword |
 
 ## Quick Lookup
 
+Resolve `references/seduction_index.json` relative to this skill's `SKILL.md`; the user's working directory is never the resource base. In Claude Code, the explicit shell path is `${CLAUDE_PLUGIN_ROOT}/skills/seduce/references/seduction_index.json`. Use `rg`; use `grep` as a fallback.
+
 ```bash
-# By seducer type
-grep -i -A5 "siren\|rake\|charmer" "${CLAUDE_PLUGIN_ROOT}/skills/seduce/references/seduction_index.json"
+# Claude Code, by seducer type
+rg -i -A5 "siren|rake|charmer" "${CLAUDE_PLUGIN_ROOT}/skills/seduce/references/seduction_index.json"
 
-# By step number
-grep -A5 '"id": 15,' "${CLAUDE_PLUGIN_ROOT}/skills/seduce/references/seduction_index.json"
+# Codex or another host, after resolving from this SKILL.md
+rg -A5 '"id": 15,' "<resolved skill directory>/references/seduction_index.json"
 
-# By keyword
-grep -i -B2 -A5 "withdraw\|chase\|mystery" "${CLAUDE_PLUGIN_ROOT}/skills/seduce/references/seduction_index.json"
+# Fallback when rg is unavailable
+grep -E -i -B2 -A5 "withdraw|chase|mystery" "<resolved skill directory>/references/seduction_index.json"
 ```
 
 ## The 9 Seducer Types

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wargame"
+  short_description: "Simulate moves, counter-moves, exposure, and endgames"
+  default_prompt: "Use $palpatine:wargame to simulate this decision turn by turn."

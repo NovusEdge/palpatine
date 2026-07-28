@@ -5,29 +5,30 @@ description: Quick reference for the 48 Laws of Power. Browse, search, or get sp
 
 # Laws Reference
 
-Invoked via `/palpatine:laws` or `/palpatine:laws <query>`.
+Invoke with Claude Code `/palpatine:laws` or `/palpatine:laws <query>`, or Codex `$palpatine:laws` or `$palpatine:laws <query>`.
 
 ## Usage
 
-| Command | Action |
-|---------|--------|
-| `/palpatine:laws` | List all 48 laws (names only) |
-| `/palpatine:laws 7` | Show Law 7 in detail |
-| `/palpatine:laws boss` | Search laws by keyword |
-| `/palpatine:laws negotiation` | Search by situation |
+| Claude Code | Codex | Action |
+|-------------|-------|--------|
+| `/palpatine:laws` | `$palpatine:laws` | List all 48 laws (names only) |
+| `/palpatine:laws 7` | `$palpatine:laws 7` | Show Law 7 in detail |
+| `/palpatine:laws boss` | `$palpatine:laws boss` | Search laws by keyword |
+| `/palpatine:laws negotiation` | `$palpatine:laws negotiation` | Search by situation |
 
 ## Quick Lookup
 
-Run grep on law_index.json:
+Resolve `references/law_index.json` relative to this skill's `SKILL.md`; the user's working directory is never the resource base. In Claude Code, the explicit shell path is `${CLAUDE_PLUGIN_ROOT}/skills/laws/references/law_index.json`. Use `rg`; use `grep` as a fallback.
+
 ```bash
-# By number
-grep -A5 '"id": 7,' "${CLAUDE_PLUGIN_ROOT}/skills/laws/references/law_index.json"
+# Claude Code, by number
+rg -A5 '"id": 7,' "${CLAUDE_PLUGIN_ROOT}/skills/laws/references/law_index.json"
 
-# By keyword
-grep -i -B2 -A5 "boss\|manager\|superior" "${CLAUDE_PLUGIN_ROOT}/skills/laws/references/law_index.json"
+# Codex or another host, after resolving from this SKILL.md
+rg -i -B2 -A5 "boss|manager|superior" "<resolved skill directory>/references/law_index.json"
 
-# By situation
-grep -i -B2 -A5 "negotiation" "${CLAUDE_PLUGIN_ROOT}/skills/laws/references/law_index.json"
+# Fallback when rg is unavailable
+grep -i -B2 -A5 "negotiation" "<resolved skill directory>/references/law_index.json"
 ```
 
 ## Output Format

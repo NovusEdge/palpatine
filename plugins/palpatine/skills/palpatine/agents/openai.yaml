@@ -1,0 +1,4 @@
+interface:
+  display_name: "Palpatine"
+  short_description: "Diagnose power dynamics and prescribe concrete moves"
+  default_prompt: "Use $palpatine:palpatine to diagnose this situation and tell me what to do."

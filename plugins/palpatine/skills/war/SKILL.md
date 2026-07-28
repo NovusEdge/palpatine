@@ -5,25 +5,30 @@ description: Quick reference for the 33 Strategies of War. Browse, search, or ge
 
 # War Reference
 
-Invoked via `/palpatine:war` or `/palpatine:war <query>`.
+Invoke with Claude Code `/palpatine:war` or `/palpatine:war <query>`, or Codex `$palpatine:war` or `$palpatine:war <query>`.
 
 ## Usage
 
-| Command | Action |
-|---------|--------|
-| `/palpatine:war` | List all 33 strategies |
-| `/palpatine:war 4` | Show Strategy 4 (Death-Ground) |
-| `/palpatine:war blitz` | Search by keyword |
-| `/palpatine:war outnumbered` | Search by situation |
+| Claude Code | Codex | Action |
+|-------------|-------|--------|
+| `/palpatine:war` | `$palpatine:war` | List all 33 strategies |
+| `/palpatine:war 4` | `$palpatine:war 4` | Show Strategy 4 (Death-Ground) |
+| `/palpatine:war blitz` | `$palpatine:war blitz` | Search by keyword |
+| `/palpatine:war outnumbered` | `$palpatine:war outnumbered` | Search by situation |
 
 ## Quick Lookup
 
-```bash
-# By number
-grep -A5 '"id": 4,' "${CLAUDE_PLUGIN_ROOT}/skills/war/references/war_index.json"
+Resolve `references/war_index.json` relative to this skill's `SKILL.md`; the user's working directory is never the resource base. In Claude Code, the explicit shell path is `${CLAUDE_PLUGIN_ROOT}/skills/war/references/war_index.json`. Use `rg`; use `grep` as a fallback.
 
-# By keyword
-grep -i -B2 -A5 "speed\|fast\|blitz" "${CLAUDE_PLUGIN_ROOT}/skills/war/references/war_index.json"
+```bash
+# Claude Code, by number
+rg -A5 '"id": 4,' "${CLAUDE_PLUGIN_ROOT}/skills/war/references/war_index.json"
+
+# Codex or another host, after resolving from this SKILL.md
+rg -i -B2 -A5 "speed|fast|blitz" "<resolved skill directory>/references/war_index.json"
+
+# Fallback when rg is unavailable
+grep -E -i -B2 -A5 "speed|fast|blitz" "<resolved skill directory>/references/war_index.json"
 ```
 
 ## Output Format

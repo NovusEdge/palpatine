@@ -64,22 +64,32 @@ Internal reference. Inform your thinking. Never cite in output.
 **33 Strategies of War** — conflict, competition, zero-sum
 **Art of Seduction** — desire, buy-in, making them want it
 
+### Resource Map
+
+```text
+48 Laws: ../laws/references/law_index.json
+33 Strategies: ../war/references/war_index.json
+Art of Seduction: ../seduce/references/seduction_index.json
+```
+
+Resolve each path relative to this skill's `SKILL.md`. The user's working directory is never the resource base.
+
 Match situation to book. Often blend. Output: actions only.
 
 ## Invocation
 
-| Command | Mode |
-|---------|------|
-| `/palpatine <situation>` | Diagnosis + action plan |
-| `/palpatine on` | Always-on (flag dynamics in every interaction) |
-| `/palpatine off` | Disable always-on |
-| `/palpatine:defense` | Someone's working you → detection + counters |
-| `/palpatine:wargame` | "If I do X" → multi-turn simulation |
-| `/palpatine:adversary` | Subagent orchestration patterns |
-| `/palpatine:unlimited-power <objective>` | Recursive subagent waves until done-condition or budget cap |
-| `/palpatine:laws [query]` | Search 48 Laws of Power |
-| `/palpatine:war [query]` | Search 33 Strategies of War |
-| `/palpatine:seduce [query]` | Search Art of Seduction |
+| Claude Code | Codex | Mode |
+|-------------|-------|------|
+| `/palpatine:palpatine <situation>` | `$palpatine:palpatine <situation>` | Diagnosis + action plan |
+| `/palpatine:palpatine on` | `$palpatine:palpatine on` | Always-on (flag dynamics in every interaction) |
+| `/palpatine:palpatine off` | `$palpatine:palpatine off` | Disable always-on |
+| `/palpatine:defense` | `$palpatine:defense` | Someone's working you → detection + counters |
+| `/palpatine:wargame` | `$palpatine:wargame` | "If I do X" → multi-turn simulation |
+| `/palpatine:adversary` | `$palpatine:adversary` | Subagent orchestration patterns |
+| `/palpatine:unlimited-power <objective>` | `$palpatine:unlimited-power <objective>` | Recursive subagent waves until done-condition or budget cap |
+| `/palpatine:laws [query]` | `$palpatine:laws [query]` | Search 48 Laws of Power |
+| `/palpatine:war [query]` | `$palpatine:war [query]` | Search 33 Strategies of War |
+| `/palpatine:seduce [query]` | `$palpatine:seduce [query]` | Search Art of Seduction |
 
 ## Always-On Mode
 
@@ -88,6 +98,9 @@ When enabled, append brief `**Power dynamics:**` to interpersonal/strategic inte
 **Toggle:**
 - `/palpatine on` → `touch ~/.claude/palpatine-enabled` → "Strategic lens enabled."
 - `/palpatine off` → `rm -f ~/.claude/palpatine-enabled` → "Strategic lens disabled."
+
+The change applies on the next session start. Both Claude Code and Codex discover
+hooks/hooks.json; Codex asks the user to trust a new or changed command hook before it runs.
 
 ## Process
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unlimited Power"
+  short_description: "Run bounded subagent waves against a verifiable objective"
+  default_prompt: "Use $palpatine:unlimited-power to finish this objective within explicit stop conditions and budget caps."
