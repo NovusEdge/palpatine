@@ -20,13 +20,13 @@ Invoked via `/palpatine:seduce` or `/palpatine:seduce <query>`.
 
 ```bash
 # By seducer type
-grep -i -A5 "siren\|rake\|charmer" "${CLAUDE_PLUGIN_ROOT}/seduction_index.json"
+grep -i -A5 "siren\|rake\|charmer" "${CLAUDE_PLUGIN_ROOT}/skills/seduce/references/seduction_index.json"
 
 # By step number
-grep -A5 '"id": 15,' "${CLAUDE_PLUGIN_ROOT}/seduction_index.json"
+grep -A5 '"id": 15,' "${CLAUDE_PLUGIN_ROOT}/skills/seduce/references/seduction_index.json"
 
 # By keyword
-grep -i -B2 -A5 "withdraw\|chase\|mystery" "${CLAUDE_PLUGIN_ROOT}/seduction_index.json"
+grep -i -B2 -A5 "withdraw\|chase\|mystery" "${CLAUDE_PLUGIN_ROOT}/skills/seduce/references/seduction_index.json"
 ```
 
 ## The 9 Seducer Types

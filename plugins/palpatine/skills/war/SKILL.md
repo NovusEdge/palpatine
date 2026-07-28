@@ -20,10 +20,10 @@ Invoked via `/palpatine:war` or `/palpatine:war <query>`.
 
 ```bash
 # By number
-grep -A5 '"id": 4,' "${CLAUDE_PLUGIN_ROOT}/war_index.json"
+grep -A5 '"id": 4,' "${CLAUDE_PLUGIN_ROOT}/skills/war/references/war_index.json"
 
 # By keyword
-grep -i -B2 -A5 "speed\|fast\|blitz" "${CLAUDE_PLUGIN_ROOT}/war_index.json"
+grep -i -B2 -A5 "speed\|fast\|blitz" "${CLAUDE_PLUGIN_ROOT}/skills/war/references/war_index.json"
 ```
 
 ## Output Format

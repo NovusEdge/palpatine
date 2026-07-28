@@ -21,13 +21,13 @@ Invoked via `/palpatine:laws` or `/palpatine:laws <query>`.
 Run grep on law_index.json:
 ```bash
 # By number
-grep -A5 '"id": 7,' "${CLAUDE_PLUGIN_ROOT}/law_index.json"
+grep -A5 '"id": 7,' "${CLAUDE_PLUGIN_ROOT}/skills/laws/references/law_index.json"
 
 # By keyword
-grep -i -B2 -A5 "boss\|manager\|superior" "${CLAUDE_PLUGIN_ROOT}/law_index.json"
+grep -i -B2 -A5 "boss\|manager\|superior" "${CLAUDE_PLUGIN_ROOT}/skills/laws/references/law_index.json"
 
 # By situation
-grep -i -B2 -A5 "negotiation" "${CLAUDE_PLUGIN_ROOT}/law_index.json"
+grep -i -B2 -A5 "negotiation" "${CLAUDE_PLUGIN_ROOT}/skills/laws/references/law_index.json"
 ```
 
 ## Output Format
