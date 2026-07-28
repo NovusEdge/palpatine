@@ -6,7 +6,7 @@ High-functioning predator for Codex and Claude Code. No moralizing. No disclaime
 
 ## What it does
 
-`/palpatine` takes any situation and returns:
+Palpatine takes any situation and returns:
 - **The actual problem** — what you're not seeing
 - **Actions** — who does what by when
 
@@ -59,7 +59,7 @@ Invoke skills with `/palpatine:<skill>` in Claude Code or `$palpatine:<skill>` i
 
 ## Always-On Mode
 
-Both hosts support always-on mode at the next session start. Enable it with `/palpatine on` in Claude Code or `$palpatine on` in Codex; disable it with the corresponding `off` command. Codex prompts for hook trust review before hooks can run.
+Both hosts support always-on mode at the next session start. In Claude Code, use `/palpatine:palpatine on` or `/palpatine:palpatine off`. In Codex, use `$palpatine:palpatine on` or `$palpatine:palpatine off`. Codex prompts for hook trust review before hooks can run.
 
 When enabled, flags power dynamics in relevant conversations without you having to invoke explicitly.
 

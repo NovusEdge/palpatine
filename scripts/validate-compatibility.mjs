@@ -15,6 +15,16 @@ function readJson(relativePath) {
   }
 }
 
+function readText(relativePath) {
+  const absolutePath = path.join(root, relativePath);
+  try {
+    return fs.readFileSync(absolutePath, "utf8");
+  } catch (error) {
+    errors.push(`${relativePath}: ${error.message}`);
+    return "";
+  }
+}
+
 function check(condition, message) {
   if (!condition) errors.push(message);
 }
@@ -81,6 +91,65 @@ function countSteps(seductionData) {
     (total, phase) => total + (Array.isArray(phase.steps) ? phase.steps.length : 0),
     0,
   );
+}
+
+function listFiles(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name);
+    return entry.isDirectory() ? listFiles(entryPath) : [entryPath];
+  });
+}
+
+async function exerciseUnlimitedPowerLoop({ plan, availableWorkerSlots }) {
+  const skill = readText("plugins/palpatine/skills/unlimited-power/SKILL.md");
+  const loopSource = [...skill.matchAll(/```javascript\s*([\s\S]*?)```/g)]
+    .map((match) => match[1])
+    .find(
+      (source) =>
+        source.includes("defineAcceptanceCheck") &&
+        source.includes("getAvailableWorkerSlots"),
+    );
+
+  if (!loopSource) {
+    errors.push("unlimited-power must document an executable orchestration loop");
+    return null;
+  }
+
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  let dispatches = 0;
+
+  try {
+    const runLoop = new AsyncFunction(
+      "BUDGET",
+      "objective",
+      "defineAcceptanceCheck",
+      "decompose",
+      "getAvailableWorkerSlots",
+      "dispatchWorker",
+      "synthesizeGap",
+      "replan",
+      "terminate",
+      loopSource,
+    );
+    const result = await runLoop(
+      { maxWaves: 5, maxWidth: 5, maxDispatch: 20, maxDepth: 1 },
+      "objective",
+      () => ({ passes: () => false }),
+      () => plan,
+      () => availableWorkerSlots,
+      async () => {
+        dispatches += 1;
+        return { done: false, gap: "remaining work" };
+      },
+      () => "remaining work",
+      () => [],
+      (status, gap) => ({ status, gap }),
+    );
+    return { ...result, dispatches };
+  } catch (error) {
+    errors.push(`unlimited-power loop could not execute: ${error.message}`);
+    return null;
+  }
 }
 
 const claudeManifest = readJson("plugins/palpatine/.claude-plugin/plugin.json");
@@ -152,6 +221,90 @@ resolvesTo("war_index.json", "plugins/palpatine/skills/war/references/war_index.
 resolvesTo("seduction_index.json", "plugins/palpatine/skills/seduce/references/seduction_index.json");
 
 checkSkillMetadata();
+
+for (const skillName of ["adversary", "defense", "unlimited-power", "wargame"]) {
+  const skillPath = `plugins/palpatine/skills/${skillName}/SKILL.md`;
+  const skill = readText(skillPath);
+  check(
+    skill.includes(`/palpatine:${skillName}`),
+    `${skillPath} must document the Claude invocation`,
+  );
+  check(
+    skill.includes(`$palpatine:${skillName}`),
+    `${skillPath} must document the Codex invocation`,
+  );
+}
+
+const readme = readText("README.md");
+check(
+  !readme.includes("`/palpatine` takes"),
+  "README overview must not imply an unnamespaced /palpatine invocation",
+);
+for (const command of [
+  "/palpatine:palpatine on",
+  "/palpatine:palpatine off",
+  "$palpatine:palpatine on",
+  "$palpatine:palpatine off",
+]) {
+  check(readme.includes(command), `README must document ${command}`);
+}
+
+const activationHook = readText("plugins/palpatine/hooks/activate.js");
+for (const command of [
+  "/palpatine:palpatine off",
+  "$palpatine:palpatine off",
+]) {
+  check(activationHook.includes(command), `activate.js must document ${command}`);
+}
+
+const packagedTextFiles = [
+  path.join(root, "README.md"),
+  ...listFiles(pluginRoot).filter((file) =>
+    [".js", ".json", ".md", ".yaml", ".yml"].includes(path.extname(file)),
+  ),
+];
+for (const absolutePath of packagedTextFiles) {
+  const contents = fs.readFileSync(absolutePath, "utf8");
+  check(
+    !/(?:\/palpatine|\$palpatine)\s+(?:on|off)\b/.test(contents),
+    `${path.relative(root, absolutePath)} must use namespaced always-on commands`,
+  );
+}
+
+const noCapacityResult = await exerciseUnlimitedPowerLoop({
+  plan: ["task"],
+  availableWorkerSlots: 0,
+});
+check(
+  noCapacityResult?.status === "stalled",
+  "unlimited-power must terminate stalled when no worker capacity is available",
+);
+check(
+  typeof noCapacityResult?.gap === "string" &&
+    /capacity|worker slot/i.test(noCapacityResult.gap),
+  "unlimited-power must report an explicit capacity gap when no worker slot is available",
+);
+check(
+  noCapacityResult?.dispatches === 0,
+  "unlimited-power must not consume dispatch budget when no worker slot is available",
+);
+
+const emptyPlanResult = await exerciseUnlimitedPowerLoop({
+  plan: [],
+  availableWorkerSlots: 1,
+});
+check(
+  emptyPlanResult?.status === "stalled",
+  "unlimited-power must terminate stalled when decomposition produces no runnable tasks",
+);
+check(
+  typeof emptyPlanResult?.gap === "string" && /plan|task|work/i.test(emptyPlanResult.gap),
+  "unlimited-power must report an explicit gap when decomposition produces no runnable tasks",
+);
+check(
+  emptyPlanResult?.dispatches === 0,
+  "unlimited-power must not consume dispatch budget for an empty plan",
+);
 
 if (lawData) check(lawData.laws?.length === 48, "Law data must contain 48 laws");
 if (warData) check(warData.strategies?.length === 33, "War data must contain 33 strategies");

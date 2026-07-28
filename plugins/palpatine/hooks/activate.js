@@ -13,5 +13,6 @@ if (fs.existsSync(stateFile)) {
 Strategic lens ACTIVE. Flag power dynamics in interpersonal situations.
 Append **Power dynamics:** with leverage points and applicable laws.
 
-/palpatine off to disable.`);
+Claude Code: /palpatine:palpatine off
+Codex: $palpatine:palpatine off`);
 }

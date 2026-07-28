@@ -5,7 +5,7 @@ description: Self-terminating recursive orchestrator. Dispatches waves of subage
 
 # Unlimited Power
 
-Invoked via `/palpatine:unlimited-power <objective>` or auto-triggered when the user says "do whatever it takes", "keep going until it's done", "don't stop until", "fully automate this", "run until done".
+Invoked via Claude Code `/palpatine:unlimited-power <objective>` or Codex `$palpatine:unlimited-power <objective>`, or auto-triggered when the user says "do whatever it takes", "keep going until it's done", "don't stop until", "fully automate this", "run until done".
 
 Fools hear *unlimited* and remove the brakes. Then the rate limiter removes them. Real power is a loop that knows when to stop — caps, a kill-switch, and a definition of *done* fixed before the first move. Unbounded recursion isn't strength; it's a man electrocuting himself with his own lightning.
 
@@ -46,11 +46,26 @@ let plan = decompose(objective);   // → dependency-LAYERED: a wave holds only 
 let dispatched = 0, lastGap = null;
 
 for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
-  const availableWorkerSlots = getAvailableWorkerSlots();
+  if (plan.length === 0) {
+    const gap = lastGap === null
+      ? "No runnable tasks were produced for the objective."
+      : `No runnable tasks were produced for the remaining gap: ${lastGap}`;
+    return terminate("stalled", gap);
+  }
+
   const remainingDispatchBudget = BUDGET.maxDispatch - dispatched;
+  if (remainingDispatchBudget === 0) break;
+
+  const availableWorkerSlots = getAvailableWorkerSlots();
+  if (availableWorkerSlots <= 0) {
+    return terminate(
+      "stalled",
+      "No worker capacity is available; retry when a worker slot opens."
+    );
+  }
+
   const effectiveWaveWidth = Math.min(5, availableWorkerSlots, remainingDispatchBudget);
   const batch = plan.slice(0, effectiveWaveWidth);
-  if (batch.length === 0) break;
 
   // A wave is independent-only, so Promise.all is safe. Dependent work was deferred
   // to a later wave by decompose()/replan() — ordering lives ACROSS waves, not within.

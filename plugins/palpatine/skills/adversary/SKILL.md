@@ -5,7 +5,7 @@ description: Subagent orchestration for sophisticated opponent modeling and mult
 
 # Adversary Simulation
 
-Invoked via `/palpatine:adversary` or auto-triggered for:
+Invoked via Claude Code `/palpatine:adversary` or Codex `$palpatine:adversary`, or auto-triggered for:
 - Wargames with sophisticated opponents
 - Multi-party scenarios (3+ players)
 - Counter mode with complex stakeholder dynamics

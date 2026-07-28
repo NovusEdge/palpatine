@@ -5,7 +5,7 @@ description: Detect manipulation patterns, identify tactics being used against y
 
 # Defense Mode
 
-Invoked via `/palpatine:defense` or auto-detected when user says "manipulating me", "is this a power play", "someone is doing X to me".
+Invoked via Claude Code `/palpatine:defense` or Codex `$palpatine:defense`, or auto-detected when user says "manipulating me", "is this a power play", "someone is doing X to me".
 
 ## Response Format
 

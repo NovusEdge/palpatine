@@ -5,7 +5,7 @@ description: Multi-turn adversary simulation. Play out scenarios move-by-move wi
 
 # Wargame Mode
 
-Invoked via `/palpatine:wargame` or auto-detected when user says "if I do X, what happens", "play this out", "simulate", "then what".
+Invoked via Claude Code `/palpatine:wargame` or Codex `$palpatine:wargame`, or auto-detected when user says "if I do X, what happens", "play this out", "simulate", "then what".
 
 ## Response Format
 
