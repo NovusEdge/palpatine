@@ -29,8 +29,7 @@ const BUDGET = {
   maxWaves:    5,   // loop iterations — recursion lives HERE, not in nesting
   maxWidth:    5,   // parallel agents per wave — rate-limit safe
   maxDispatch: 20,  // total agents across the whole run, ever
-  maxDepth:    1,   // leaf agents do NOT spawn (see Rule 4 — matches /palpatine:adversary)
-  model: "cheapest-sufficient" // tokens are fuel; don't burn premium on grunt work
+  maxDepth:    1    // leaf agents do NOT spawn (see Rule 4 — matches /palpatine:adversary)
 };
 ```
 
@@ -41,22 +40,23 @@ Decompose → dispatch a bounded wave → verify against the done-condition → 
 ```javascript
 // PRIME RULE — refuse blind objectives.
 const done = defineAcceptanceCheck(objective);
-if (!done) return abort("No verifiable done-condition.");
+if (!done) return terminate("no-stop-condition", "No verifiable done-condition.");
 
 let plan = decompose(objective);   // → dependency-LAYERED: a wave holds only independent tasks; dependents land in later waves
 let dispatched = 0, lastGap = null;
 
 for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
-  const batch = plan.slice(0, Math.min(BUDGET.maxWidth, BUDGET.maxDispatch - dispatched));
+  const availableWorkerSlots = getAvailableWorkerSlots();
+  const remainingDispatchBudget = BUDGET.maxDispatch - dispatched;
+  const effectiveWaveWidth = Math.min(5, availableWorkerSlots, remainingDispatchBudget);
+  const batch = plan.slice(0, effectiveWaveWidth);
   if (batch.length === 0) break;
 
   // A wave is independent-only, so Promise.all is safe. Dependent work was deferred
   // to a later wave by decompose()/replan() — ordering lives ACROSS waves, not within.
-  const results = await Promise.all(batch.map(task => Agent({
-    description: `Worker: ${task.name}`,
-    prompt: workerPrompt(task, done),   // task + the acceptance check it must satisfy
-    schema: WORKER_SCHEMA
-  })));
+  const results = await Promise.all(
+    batch.map(task => dispatchWorker(task, done))
+  );
   dispatched += batch.length;
 
   if (done.passes(results)) return terminate("done", results);
@@ -87,6 +87,21 @@ const WORKER_SCHEMA = {
 }
 ```
 
+## Host Adapters
+
+`dispatchWorker(task, acceptanceCheck)` is the only host-specific boundary.
+
+**Codex `dispatchWorker`:**
+1. Call `spawn_agent` with a self-contained task, `fork_turns: "none"`, and no model override.
+2. Require the exact final-response headings `result`, `done`, `gap`, `evidence`, and `confidence`.
+3. Use `wait_agent` for mailbox completion and normalize the final response to `WORKER_SCHEMA`.
+
+Codex workers inherit the orchestrator model unless the user explicitly requests an override. Their prompt includes the acceptance check and states that leaf workers never spawn.
+
+**Claude `dispatchWorker`:**
+1. Call `Agent` with `WORKER_SCHEMA`.
+2. Return the validated structured result.
+
 ## Orchestration Rules
 
 1. **No done-condition, no launch.** Refuse blind objectives. Spinning forever is the failure mode, not the feature.
@@ -95,7 +110,7 @@ const WORKER_SCHEMA = {
 4. **Leaf agents don't spawn subagents.** The main loop owns all recursion — depth lives in *waves*, not nesting. (Consistent with `/palpatine:adversary` Rule 5. Bounded depth ≠ infinite descent.)
 5. **Doom-loop guard (best-effort).** Two waves, same gap → stop early. The gap is a semantic summary, so this equality test is a heuristic, not a proof — `maxWaves` (Rule 2) is the hard stop that always holds; the guard only saves wasted waves when a stall repeats verbatim. Repetition isn't persistence; it's a stuck actuator.
 6. **Rate discipline.** Cap wave width; stagger if the host throttles. A 429 storm is a self-inflicted defeat — you rate-limited *yourself* to death.
-7. **Cheapest sufficient model per worker.** Premium models on grunt work is wasted motion. Match the tool to the cut.
+7. **Model discipline.** Workers use the host's inherited model unless the user explicitly requests an override.
 8. **Escalate, never fail silent.** `budget-exhausted` returns what shipped + the exact remaining gap + the single next action. A quiet stall is worse than a loud stop.
 
 ## Terminal States

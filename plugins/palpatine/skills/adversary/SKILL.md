@@ -22,7 +22,7 @@ Invoked via `/palpatine:adversary` or auto-triggered for:
 - Simple 2-party dynamics
 - Quick read is sufficient
 
-## Claude Code Agent Patterns
+## Host Agent Patterns
 
 ### Schemas
 
@@ -80,6 +80,20 @@ const PLAYER_SCHEMA = {
   required: ["move", "alliance", "threat", "price", "threatLevel"]
 }
 ```
+
+### Host Adapters
+
+**Codex:**
+- Spawn one independent worker per player with `spawn_agent`.
+- Use `fork_turns: "none"` and provide all player context in the prompt.
+- Ask for the exact keys `move`, `alliance`, `threat`, `price`, and `threatLevel`.
+- Dispatch independent players in parallel, use `wait_agent` for mailbox completion, then synthesize.
+- Use `followup_task` for corrections; leaf workers never spawn.
+- Inherit the orchestrator model unless the user explicitly requests an override.
+
+**Claude Code:**
+- Use `Agent` with `PLAYER_SCHEMA` or `ADVERSARY_SCHEMA`.
+- Use `Promise.all` only for independent players.
 
 ### Single Adversary
 
@@ -185,7 +199,7 @@ What's opponent's counter-move this turn?`,
 1. **Parallel when independent** — multi-party analysis, initial player modeling
 2. **Sequential when dependent** — turn-by-turn wargaming where each move depends on prior
 3. **Token discipline** — agents return structured data, synthesis happens in main context
-4. **Cap agent count** — max 5-7 agents per invocation, more = diminishing returns
+4. **Cap player models** — at most five total player models per invocation, never exceeding available worker slots in one wave
 5. **No recursive spawning** — agents don't spawn their own subagents
 
 ## Output Discipline
