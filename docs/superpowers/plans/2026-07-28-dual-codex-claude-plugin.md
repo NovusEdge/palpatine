@@ -144,7 +144,7 @@ git commit -m "test: define dual-host plugin contract"
 **Interfaces:**
 
 - Consumes: the current root plugin and the plugin-creator scaffold script
-- Produces: a self-contained `plugins/palpatine` source addressable by both catalogs
+- Produces: a self-contained `plugins/palpatine` source addressable by both catalogs; law matching accepts the current `prompt` hook field and legacy inputs
 
 - [ ] **Step 1: Move the shared payload**
 
@@ -293,6 +293,20 @@ const lawPath = path.join(
   "references",
   "law_index.json",
 );
+```
+
+Make the current shared hook input field the first extraction case while preserving legacy fallbacks:
+
+```javascript
+function extractUserMessage(data) {
+  if (data.prompt) return data.prompt;
+  if (data.user_message) return data.user_message;
+  if (data.messages && data.messages.length > 0) {
+    const last = data.messages[data.messages.length - 1];
+    if (last.role === "user") return last.content;
+  }
+  return null;
+}
 ```
 
 - [ ] **Step 7: Run the contract**
