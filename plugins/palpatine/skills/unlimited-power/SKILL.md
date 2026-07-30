@@ -38,60 +38,65 @@ const BUDGET = {
 Decompose → dispatch a bounded wave → verify against the done-condition → terminate or re-plan the *gap only*. Repeat until done or the governor stops it.
 
 ```javascript
-// PRIME RULE — refuse blind objectives.
-const done = defineAcceptanceCheck(objective);
-if (!done) return terminate("no-stop-condition", "No verifiable done-condition.");
+async function runUnlimitedPower({
+  objective,
+  explicitlyRequestedModel,
+}) {
+  // PRIME RULE — refuse blind objectives.
+  const done = defineAcceptanceCheck(objective);
+  if (!done) return terminate("no-stop-condition", "No verifiable done-condition.");
 
-const userRequestedModel = getExplicitUserRequestedModel(objective); // undefined unless the user named a model
-let plan = decompose(objective);   // → dependency-LAYERED: a wave holds only independent tasks; dependents land in later waves
-let dispatched = 0, lastGap = null;
-let nextWorkerDispatchIndex = 0;
+  const userRequestedModel = explicitlyRequestedModel;
+  let plan = decompose(objective);   // → dependency-LAYERED: a wave holds only independent tasks; dependents land in later waves
+  let dispatched = 0, lastGap = null;
+  let nextWorkerDispatchIndex = 0;
 
-for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
-  if (plan.length === 0) {
-    const gap = lastGap === null
-      ? "No runnable tasks were produced for the objective."
-      : `No runnable tasks were produced for the remaining gap: ${lastGap}`;
-    return terminate("stalled", gap);
-  }
+  for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
+    if (plan.length === 0) {
+      const gap = lastGap === null
+        ? "No runnable tasks were produced for the objective."
+        : `No runnable tasks were produced for the remaining gap: ${lastGap}`;
+      return terminate("stalled", gap);
+    }
 
-  const remainingDispatchBudget = BUDGET.maxDispatch - dispatched;
-  if (remainingDispatchBudget === 0) break;
+    const remainingDispatchBudget = BUDGET.maxDispatch - dispatched;
+    if (remainingDispatchBudget === 0) break;
 
-  const availableWorkerSlots = getAvailableWorkerSlots();
-  if (availableWorkerSlots <= 0) {
-    return terminate(
-      "stalled",
-      "No worker capacity is available; retry when a worker slot opens."
+    const availableWorkerSlots = getAvailableWorkerSlots();
+    if (availableWorkerSlots <= 0) {
+      return terminate(
+        "stalled",
+        "No worker capacity is available; retry when a worker slot opens."
+      );
+    }
+
+    const effectiveWaveWidth = Math.min(
+      BUDGET.maxWidth,
+      availableWorkerSlots,
+      remainingDispatchBudget
     );
+    const batch = plan.slice(0, effectiveWaveWidth);
+
+    // A wave is independent-only, so Promise.all is safe. Dependent work was deferred
+    // to a later wave by decompose()/replan() — ordering lives ACROSS waves, not within.
+    const workers = await Promise.all(
+      batch.map(task => {
+        const workerTaskName = `worker_w${wave}_${nextWorkerDispatchIndex++}`;
+        return dispatchWorker(workerTaskName, task, done, userRequestedModel);
+      })
+    );
+    const results = await collectWorkerResults(workers);
+    dispatched += batch.length;
+
+    if (done.passes(results)) return terminate("done", results);
+
+    const gap = synthesizeGap(results);            // what's still missing
+    if (gap === lastGap) return terminate("stalled", gap);  // doom-loop guard (best-effort; maxWaves is the hard stop)
+    lastGap = gap;
+    plan = replan(gap);                            // next wave attacks only the remainder
   }
-
-  const effectiveWaveWidth = Math.min(
-    BUDGET.maxWidth,
-    availableWorkerSlots,
-    remainingDispatchBudget
-  );
-  const batch = plan.slice(0, effectiveWaveWidth);
-
-  // A wave is independent-only, so Promise.all is safe. Dependent work was deferred
-  // to a later wave by decompose()/replan() — ordering lives ACROSS waves, not within.
-  const workers = await Promise.all(
-    batch.map(task => {
-      const workerTaskName = `worker_w${wave}_${nextWorkerDispatchIndex++}`;
-      return dispatchWorker(workerTaskName, task, done, userRequestedModel);
-    })
-  );
-  const results = await collectWorkerResults(workers);
-  dispatched += batch.length;
-
-  if (done.passes(results)) return terminate("done", results);
-
-  const gap = synthesizeGap(results);            // what's still missing
-  if (gap === lastGap) return terminate("stalled", gap);  // doom-loop guard (best-effort; maxWaves is the hard stop)
-  lastGap = gap;
-  plan = replan(gap);                            // next wave attacks only the remainder
+  return terminate("budget-exhausted", lastGap);   // partial results + exact gap, never silent
 }
-return terminate("budget-exhausted", lastGap);   // partial results + exact gap, never silent
 ```
 
 ## Worker Schema

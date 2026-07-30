@@ -177,7 +177,7 @@ Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
           if (correctionRequested.has(workerTask)) {
             throw new Error(`Worker ${workerTask} returned invalid keys after correction.`);
           }
-          if (Date.now() >= collectionDeadline) break;
+          if (Date.now() >= collectionDeadline) continue;
           await followup_task({
             target: workerTask,
             message: `Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
@@ -228,7 +228,7 @@ Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
 
 For Claude Code, use the same capped `wave` and `PLAYER_SCHEMA` with `Agent`; `Promise.all` remains limited to the bounded, independent wave.
 
-The invocation explicitly supplies `situation` and `explicitlyRequestedModel`; `userRequestedModel` is assigned from that explicit field and remains `undefined` when the user named no model. The conditional model field therefore never guesses an override. The controller owns Codex task names: each combines the wave number with one run-wide monotonic dispatch index, so it is unique and contains only lowercase letters, digits, and underscores. The player's human name stays in `message`. `wait_agent` accepts only its optional `timeout_ms`; it signals a mailbox update, not a worker payload, and can return without a player final. Each collector stops starting waits at its wall-clock deadline; Codex's 10-second minimum timeout bounds a final overshoot. Before a correction request, the collector rechecks the deadline; expiry leaves the canonical task pending for the normal `collectionGaps` path. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`. Unreturned canonical player tasks become `collectionGaps`, never invented `PLAYER_SCHEMA` fields, and the board synthesis receives those gaps. The controller never waits inside concurrent player dispatches or rereads stale responses after an unrelated update.
+The invocation explicitly supplies `situation` and `explicitlyRequestedModel`; `userRequestedModel` is assigned from that explicit field and remains `undefined` when the user named no model. The conditional model field therefore never guesses an override. The controller owns Codex task names: each combines the wave number with one run-wide monotonic dispatch index, so it is unique and contains only lowercase letters, digits, and underscores. The player's human name stays in `message`. `wait_agent` accepts only its optional `timeout_ms`; it signals a mailbox update, not a worker payload, and can return without a player final. Each collector stops starting waits at its wall-clock deadline; Codex's 10-second minimum timeout bounds a final overshoot. Before a correction request, the collector rechecks the deadline; expiry leaves that canonical task pending for the normal `collectionGaps` path and continues processing other delivered finals. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`. Unreturned canonical player tasks become `collectionGaps`, never invented `PLAYER_SCHEMA` fields, and the board synthesis receives those gaps. The controller never waits inside concurrent player dispatches or rereads stale responses after an unrelated update.
 
 ### Synthesis
 
