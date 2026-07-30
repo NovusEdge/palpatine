@@ -38,6 +38,26 @@ const BUDGET = {
 Decompose → dispatch a bounded wave → verify against the done-condition → terminate or re-plan the *gap only*. Repeat until done or the governor stops it.
 
 ```javascript
+const CODEX_TEAM_SLOT_LIMIT = 4;
+
+function chooseUnusedRunComponent(agents, taskPrefix) {
+  const existingLeafNames = agents.map((agent) => agent.agent_name.split("/").at(-1));
+  for (let runIndex = 0; ; runIndex += 1) {
+    const runComponent = `r${runIndex}`;
+    const reservedPrefix = `${taskPrefix}_${runComponent}_`;
+    if (!existingLeafNames.some((name) => name.startsWith(reservedPrefix))) {
+      return runComponent;
+    }
+  }
+}
+
+function availableCodexWorkerSlots(agents) {
+  const activeAgentCount = agents.filter((agent) =>
+    ["pending", "running", "working"].includes(agent.agent_status)
+  ).length;
+  return Math.max(0, CODEX_TEAM_SLOT_LIMIT - activeAgentCount);
+}
+
 async function runUnlimitedPower({
   objective,
   explicitlyRequestedModel,
@@ -50,6 +70,8 @@ async function runUnlimitedPower({
   let plan = decompose(objective);   // → dependency-LAYERED: a wave holds only independent tasks; dependents land in later waves
   let dispatched = 0, lastGap = null;
   let nextWorkerDispatchIndex = 0;
+  const initialAgentSnapshot = await list_agents({});
+  const runComponent = chooseUnusedRunComponent(initialAgentSnapshot.agents, "worker");
 
   for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
     if (plan.length === 0) {
@@ -62,7 +84,8 @@ async function runUnlimitedPower({
     const remainingDispatchBudget = BUDGET.maxDispatch - dispatched;
     if (remainingDispatchBudget === 0) break;
 
-    const availableWorkerSlots = getAvailableWorkerSlots();
+    const currentAgentSnapshot = await list_agents({});
+    const availableWorkerSlots = availableCodexWorkerSlots(currentAgentSnapshot.agents);
     if (availableWorkerSlots <= 0) {
       return terminate(
         "stalled",
@@ -81,7 +104,7 @@ async function runUnlimitedPower({
     // to a later wave by decompose()/replan() — ordering lives ACROSS waves, not within.
     const workers = await Promise.all(
       batch.map(task => {
-        const workerTaskName = `worker_w${wave}_${nextWorkerDispatchIndex++}`;
+        const workerTaskName = `worker_${runComponent}_w${wave}_${nextWorkerDispatchIndex++}`;
         return dispatchWorker(workerTaskName, task, done, userRequestedModel);
       })
     );
@@ -123,6 +146,32 @@ const WORKER_SCHEMA = {
 
 **Codex `dispatchWorker`:**
 ```javascript
+function normalizeWorkerResponse(rawResponse) {
+  let response;
+  try {
+    response = typeof rawResponse === "string"
+      ? JSON.parse(rawResponse)
+      : rawResponse;
+  } catch {
+    return null;
+  }
+  const requiredKeys = ["result", "done", "gap", "evidence", "confidence"];
+  if (
+    response === null ||
+    typeof response !== "object" ||
+    Array.isArray(response) ||
+    Object.keys(response).sort().join(",") !== [...requiredKeys].sort().join(",") ||
+    typeof response.result !== "string" ||
+    typeof response.done !== "boolean" ||
+    typeof response.gap !== "string" ||
+    typeof response.evidence !== "string" ||
+    !["high", "medium", "low"].includes(response.confidence)
+  ) {
+    return null;
+  }
+  return response;
+}
+
 async function dispatchWorker(workerTaskName, task, acceptanceCheck, userRequestedModel) {
   const { task_name: workerTask } = await spawn_agent({
     task_name: workerTaskName,
@@ -134,7 +183,8 @@ ${task.prompt}
 
 Acceptance check: ${acceptanceCheck}
 Leaf workers never spawn subagents.
-Return the exact headings: result, done, gap, evidence, confidence.`
+Return only raw JSON with exactly these keys: result, done, gap, evidence, confidence.
+No Markdown fences.`
   });
   return workerTask;
 }
@@ -148,6 +198,8 @@ const COLLECTION_TIMEOUT_MS = 120_000;
 async function collectCodexWorkerFinals(workerTasks) {
   const pendingWorkerTasks = new Set(workerTasks);
   const resultsByWorkerTask = new Map();
+  const correctionRequested = new Set();
+  const rejectedFinalByWorkerTask = new Map();
   const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;
   const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;
 
@@ -157,15 +209,47 @@ async function collectCodexWorkerFinals(workerTasks) {
     // Codex accepts a timeout_ms of at least 10 seconds, so the final wait can overshoot by at most that amount.
     const waitMs = Math.max(10_000, Math.min(60_000, remainingMs));
     await wait_agent({ timeout_ms: waitMs });
-    const deliveredFinals = readDeliveredFinals();
+    const { agents } = await list_agents({});
 
-    for (const [workerTask, response] of deliveredFinals) {
+    for (const agent of agents) {
+      const workerTask = agent.agent_name;
       if (!pendingWorkerTasks.has(workerTask)) continue;
-      resultsByWorkerTask.set(workerTask, normalizeWorkerResponse(response));
+      if (
+        typeof agent.agent_status !== "object" ||
+        typeof agent.agent_status.completed !== "string"
+      ) {
+        continue;
+      }
+      const rawResponse = agent.agent_status.completed;
+      if (rejectedFinalByWorkerTask.get(workerTask) === rawResponse) continue;
+      const response = normalizeWorkerResponse(rawResponse);
+      if (!response) {
+        if (correctionRequested.has(workerTask)) {
+          resultsByWorkerTask.set(workerTask, {
+            result: "Invalid final result.",
+            done: false,
+            gap: `Worker ${workerTask} returned invalid JSON after one correction.`,
+            evidence: `The completed payload for canonical worker task ${workerTask} did not match WORKER_SCHEMA.`,
+            confidence: "low"
+          });
+          pendingWorkerTasks.delete(workerTask);
+          continue;
+        }
+        if (Date.now() >= collectionDeadline) continue;
+        await followup_task({
+          target: workerTask,
+          message: "Return only raw JSON with exactly these keys: result, done, gap, evidence, confidence. No Markdown fences."
+        });
+        correctionRequested.add(workerTask);
+        rejectedFinalByWorkerTask.set(workerTask, rawResponse);
+        continue;
+      }
+      resultsByWorkerTask.set(workerTask, response);
       pendingWorkerTasks.delete(workerTask);
     }
   }
   for (const workerTask of pendingWorkerTasks) {
+    await interrupt_agent({ target: workerTask });
     resultsByWorkerTask.set(workerTask, {
       result: "No final result returned.",
       done: false,
@@ -178,15 +262,38 @@ async function collectCodexWorkerFinals(workerTasks) {
 }
 ```
 
-The controller generates each `task_name` from the wave number and one run-wide monotonic dispatch index. This keeps names unique and within Codex's lowercase-letter, digit, and underscore schema; the human task name stays in `message`. Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update, not a worker payload. It accepts only its optional `timeout_ms` and can return without a worker final. Each collector stops starting waits at its wall-clock deadline; Codex's 10-second minimum timeout bounds a final overshoot. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`; one controller loop normalizes delivered finals against `WORKER_SCHEMA` and creates a low-confidence `WORKER_SCHEMA` result for every canonical worker that missed the deadline. Input order is preserved when results return to synthesis.
+Before dispatch, `list_agents` supplies every existing canonical task name. The controller selects the first unused `rN` component and combines it with the wave number and one run-wide monotonic dispatch index. Names remain unique across repeated invocations in the same Codex task and contain only lowercase letters, digits, and underscores; the human task name stays in `message`.
+
+Codex's team limit is four slots including the controller. Every wave derives free capacity from non-completed `list_agents` entries. Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update, not a worker payload. The next `list_agents` snapshot exposes completed text as `agent_status.completed`, keyed by `agent_name`. Codex may also deliver a `FINAL_ANSWER` message directly into the controller conversation; treat its sender task name and payload identically. Each collector stops starting waits at its wall-clock deadline, interrupts every task still pending, and creates a low-confidence `WORKER_SCHEMA` result for every missing or invalid worker. Input order is preserved when results return to synthesis.
 
 Codex workers inherit the orchestrator model unless the user explicitly requests an override. Their prompt includes the acceptance check and states that leaf workers never spawn.
 
 **Claude `dispatchWorker`:**
-1. Call `Agent` with `WORKER_SCHEMA`.
-2. Return the validated structured result.
+```javascript
+async function dispatchClaudeWorker(task, acceptanceCheck) {
+  let rawResponse = await Agent({
+    description: `Worker: ${task.name}`,
+    prompt: `${task.prompt}
 
-**Claude `collectWorkerResults`:** Return the already validated worker results.
+Acceptance check: ${acceptanceCheck}
+Return only raw JSON with exactly these keys: result, done, gap, evidence, confidence.
+No Markdown fences.`
+  });
+  let response = normalizeWorkerResponse(rawResponse);
+  if (!response) {
+    rawResponse = await Agent({
+      description: `Correct worker ${task.name} JSON`,
+      prompt: `The prior response was invalid: ${rawResponse}
+Return only raw JSON with exactly these keys: result, done, gap, evidence, confidence.`
+    });
+    response = normalizeWorkerResponse(rawResponse);
+  }
+  if (!response) throw new Error(`Worker ${task.name} returned invalid JSON after correction.`);
+  return response;
+}
+```
+
+Claude Code 2.1.220 requires `description` and `prompt`, makes `subagent_type` optional, and does not accept `schema`. `normalizeWorkerResponse` parses the raw JSON and validates `WORKER_SCHEMA`; `collectWorkerResults` receives only controller-validated results.
 
 ## Orchestration Rules
 

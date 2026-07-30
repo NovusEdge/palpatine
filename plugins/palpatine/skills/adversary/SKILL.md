@@ -26,7 +26,7 @@ Invoked via Claude Code `/palpatine:adversary` or Codex `$palpatine:adversary`, 
 
 ### Schemas
 
-Use JSON schemas for structured output — no parsing, automatic validation.
+Use these schemas in the controller. Agents return raw JSON; the controller parses it, validates the exact shape, and requests one correction before treating the response as a gap.
 
 ```javascript
 // Single adversary response
@@ -79,6 +79,43 @@ const PLAYER_SCHEMA = {
   },
   required: ["move", "alliance", "threat", "price", "threatLevel"]
 }
+
+function validateJsonObject(rawResponse, schema) {
+  let response;
+  try {
+    response = typeof rawResponse === "string"
+      ? JSON.parse(rawResponse)
+      : rawResponse;
+  } catch {
+    return null;
+  }
+  if (response === null || typeof response !== "object" || Array.isArray(response)) {
+    return null;
+  }
+  const expectedKeys = [...schema.required].sort();
+  const actualKeys = Object.keys(response).sort();
+  if (
+    actualKeys.length !== expectedKeys.length ||
+    actualKeys.some((key, index) => key !== expectedKeys[index])
+  ) {
+    return null;
+  }
+  for (const key of schema.required) {
+    const definition = schema.properties[key];
+    const value = response[key];
+    if (definition.type === "string" && typeof value !== "string") return null;
+    if (
+      definition.type === "array" &&
+      (!Array.isArray(value) ||
+        value.some((item) => typeof item !== definition.items.type) ||
+        (definition.maxItems !== undefined && value.length > definition.maxItems))
+    ) {
+      return null;
+    }
+    if (definition.enum && !definition.enum.includes(value)) return null;
+  }
+  return response;
+}
 ```
 
 ### Host Adapters
@@ -86,11 +123,13 @@ const PLAYER_SCHEMA = {
 **Codex:**
 - Use `spawn_agent` with `fork_turns: "none"` and all player context in the prompt.
 - Ask for the exact keys `move`, `alliance`, `threat`, `price`, and `threatLevel`.
-- Collect each wave from one controller-owned mailbox loop keyed by the canonical task names returned from `spawn_agent`; use `followup_task` when a response needs correction. Leaf workers never spawn.
+- Use `list_agents` to derive current capacity, choose an unused run component, and read completed payloads keyed by the canonical task names returned from `spawn_agent`.
+- Use `wait_agent` only as a mailbox notification, `followup_task` for one correction, and `interrupt_agent` for workers still pending at the deadline. Leaf workers never spawn.
 - Inherit the orchestrator model. Forward `userRequestedModel` only when the user explicitly named a model; never infer an override.
 
 **Claude Code:**
-- Use `Agent` with `PLAYER_SCHEMA` or `ADVERSARY_SCHEMA`.
+- Call `Agent` with required `description` and `prompt` fields. `subagent_type` is optional. The current tool does not accept `schema`.
+- Request raw JSON in the prompt, then validate it against `PLAYER_SCHEMA` or `ADVERSARY_SCHEMA` in the controller and request one correction if needed.
 - Use `Promise.all` only for independent players.
 
 ### Single Adversary
@@ -98,9 +137,10 @@ const PLAYER_SCHEMA = {
 Spawn one agent for focused opponent modeling:
 
 ```javascript
-Agent({
-  description: "Adversary: [role]",
-  prompt: `Model [OPPONENT] as ruthless rational actor.
+async function runClaudeAdversary() {
+  let rawResponse = await Agent({
+    description: "Adversary: [role]",
+    prompt: `Model [OPPONENT] as ruthless rational actor.
 
 OPPONENT: [role/name]
 GOALS: [what they want — specific]
@@ -110,10 +150,21 @@ CONSTRAINTS: [what stops them from going nuclear]
 TARGET is about to: [user's planned move]
 
 Assume competent and self-interested. What's their counter-move?
-Return: counter move, exploits they'd hit, escalation path, their weak point.
-No caveats. Most likely play, stated cold.`,
-  schema: ADVERSARY_SCHEMA
-})
+Return only raw JSON with exactly these keys: counter, exploits, escalation, weakPoint.
+No Markdown fences. No caveats. Most likely play, stated cold.`
+  });
+  let response = validateJsonObject(rawResponse, ADVERSARY_SCHEMA);
+  if (!response) {
+    rawResponse = await Agent({
+      description: "Correct adversary JSON",
+      prompt: `The prior response was invalid: ${rawResponse}
+Return only raw JSON with exactly these keys: counter, exploits, escalation, weakPoint.`
+    });
+    response = validateJsonObject(rawResponse, ADVERSARY_SCHEMA);
+  }
+  if (!response) throw new Error("Claude adversary returned invalid JSON after correction.");
+  return response;
+}
 ```
 
 ### Multi-Party (Bounded Waves)
@@ -121,6 +172,34 @@ No caveats. Most likely play, stated cold.`,
 Dispatch only independent players. At most five player models run per invocation, and each wave is capped by current worker capacity:
 
 ```javascript
+const CODEX_TEAM_SLOT_LIMIT = 4;
+
+function chooseUnusedRunComponent(agents, taskPrefix) {
+  const existingLeafNames = agents.map((agent) => agent.agent_name.split("/").at(-1));
+  for (let runIndex = 0; ; runIndex += 1) {
+    const runComponent = `r${runIndex}`;
+    const reservedPrefix = `${taskPrefix}_${runComponent}_`;
+    if (!existingLeafNames.some((name) => name.startsWith(reservedPrefix))) {
+      return runComponent;
+    }
+  }
+}
+
+function availableCodexWorkerSlots(agents) {
+  const activeAgentCount = agents.filter((agent) =>
+    ["pending", "running", "working"].includes(agent.agent_status)
+  ).length;
+  return Math.max(0, CODEX_TEAM_SLOT_LIMIT - activeAgentCount);
+}
+
+function hasExactKeys(value, expectedKeys) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const actualKeys = Object.keys(value).sort();
+  const sortedExpectedKeys = [...expectedKeys].sort();
+  return actualKeys.length === sortedExpectedKeys.length &&
+    actualKeys.every((key, index) => key === sortedExpectedKeys[index]);
+}
+
 async function runMultiPartyAdversary({
   situation,
   explicitlyRequestedModel,
@@ -138,7 +217,13 @@ async function runMultiPartyAdversary({
   const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;
   const remainingPlayers = players.slice(0, MAX_PLAYER_MODELS);
   const results = [];
-  const collectionGaps = [];
+  const collectionGaps = players.slice(MAX_PLAYER_MODELS).map((player) => ({
+    workerTask: null,
+    player: player.name,
+    gap: `Player ${player.name} was not dispatched because the ${MAX_PLAYER_MODELS}-player cap was reached.`
+  }));
+  const initialAgentSnapshot = await list_agents({});
+  const runComponent = chooseUnusedRunComponent(initialAgentSnapshot.agents, "player");
 
   async function dispatchCodexPlayer(workerTaskName, player, userRequestedModel) {
     const { task_name: workerTask } = await spawn_agent({
@@ -152,15 +237,21 @@ GOALS: ${player.goals}
 LEVERAGE: ${player.leverage}
 SITUATION: ${situation}
 
-Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
+Return only raw JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.
+No Markdown fences.`
     });
-    return workerTask;
+    return { workerTask, player };
   }
 
   async function collectCodexPlayerFinals(workerTasks) {
-    const pendingWorkerTasks = new Set(workerTasks);
+    const playerByWorkerTask = new Map(
+      workerTasks.map(({ workerTask, player }) => [workerTask, player])
+    );
+    const pendingWorkerTasks = new Set(workerTasks.map(({ workerTask }) => workerTask));
     const resultsByWorkerTask = new Map();
     const correctionRequested = new Set();
+    const rejectedFinalByWorkerTask = new Map();
+    const collectionGaps = [];
     const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;
 
     while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {
@@ -169,39 +260,74 @@ Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
       // Codex accepts a timeout_ms of at least 10 seconds, so the final wait can overshoot by at most that amount.
       const waitMs = Math.max(10_000, Math.min(60_000, remainingMs));
       await wait_agent({ timeout_ms: waitMs });
-      const deliveredFinals = readDeliveredFinals();
+      const { agents } = await list_agents({});
 
-      for (const [workerTask, response] of deliveredFinals) {
+      for (const agent of agents) {
+        const workerTask = agent.agent_name;
         if (!pendingWorkerTasks.has(workerTask)) continue;
+        if (
+          typeof agent.agent_status !== "object" ||
+          typeof agent.agent_status.completed !== "string"
+        ) {
+          continue;
+        }
+        const rawResponse = agent.agent_status.completed;
+        if (rejectedFinalByWorkerTask.get(workerTask) === rawResponse) continue;
+        const response = validateJsonObject(rawResponse, PLAYER_SCHEMA);
         if (!hasExactKeys(response, PLAYER_OUTPUT_KEYS)) {
           if (correctionRequested.has(workerTask)) {
-            throw new Error(`Worker ${workerTask} returned invalid keys after correction.`);
+            const player = playerByWorkerTask.get(workerTask);
+            collectionGaps.push({
+              workerTask,
+              player: player.name,
+              gap: `Player ${player.name} returned invalid JSON after one correction.`
+            });
+            pendingWorkerTasks.delete(workerTask);
+            continue;
           }
           if (Date.now() >= collectionDeadline) continue;
           await followup_task({
             target: workerTask,
-            message: `Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
+            message: `Return only raw JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}. No Markdown fences.`
           });
           correctionRequested.add(workerTask);
+          rejectedFinalByWorkerTask.set(workerTask, rawResponse);
           // The next pass rechecks collectionDeadline before waiting for this correction.
           continue;
         }
-        resultsByWorkerTask.set(workerTask, response);
+        const player = playerByWorkerTask.get(workerTask);
+        resultsByWorkerTask.set(workerTask, { workerTask, player, response });
         pendingWorkerTasks.delete(workerTask);
       }
     }
 
-    const collectionGaps = [...pendingWorkerTasks].map((workerTask) =>
-      `No final was delivered for canonical player task ${workerTask} before the ${COLLECTION_TIMEOUT_DESCRIPTION} collection deadline.`,
-    );
+    for (const workerTask of pendingWorkerTasks) {
+      await interrupt_agent({ target: workerTask });
+      const player = playerByWorkerTask.get(workerTask);
+      collectionGaps.push({
+        workerTask,
+        player: player.name,
+        gap: `No valid final was delivered for player ${player.name} from canonical task ${workerTask} before the ${COLLECTION_TIMEOUT_DESCRIPTION} collection deadline.`
+      });
+    }
     return { resultsByWorkerTask, collectionGaps };
   }
 
   let nextPlayerDispatchIndex = 0;
   let waveIndex = 0;
   while (remainingPlayers.length > 0) {
-    const availableWorkerSlots = getAvailableWorkerSlots();
-    if (availableWorkerSlots <= 0) break;
+    const currentAgentSnapshot = await list_agents({});
+    const availableWorkerSlots = availableCodexWorkerSlots(currentAgentSnapshot.agents);
+    if (availableWorkerSlots <= 0) {
+      for (const player of remainingPlayers.splice(0)) {
+        collectionGaps.push({
+          workerTask: null,
+          player: player.name,
+          gap: `Player ${player.name} was not dispatched because no Codex worker slot was available.`
+        });
+      }
+      break;
+    }
 
     const waveWidth = Math.min(
       MAX_PLAYER_MODELS,
@@ -211,13 +337,16 @@ Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
     const wave = remainingPlayers.splice(0, waveWidth);
     const workerTasks = await Promise.all(
       wave.map((player) => {
-        const workerTaskName = `player_w${waveIndex}_${nextPlayerDispatchIndex++}`;
+        const workerTaskName = `player_${runComponent}_w${waveIndex}_${nextPlayerDispatchIndex++}`;
         return dispatchCodexPlayer(workerTaskName, player, userRequestedModel);
       })
     );
     const { resultsByWorkerTask, collectionGaps: waveCollectionGaps } =
       await collectCodexPlayerFinals(workerTasks);
-    results.push(...workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask)).filter(Boolean));
+    for (const { workerTask } of workerTasks) {
+      const keyedResult = resultsByWorkerTask.get(workerTask);
+      if (keyedResult) results.push(keyedResult);
+    }
     collectionGaps.push(...waveCollectionGaps);
     waveIndex += 1;
   }
@@ -226,9 +355,11 @@ Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
 }
 ```
 
-For Claude Code, use the same capped `wave` and `PLAYER_SCHEMA` with `Agent`; `Promise.all` remains limited to the bounded, independent wave.
+For Claude Code, use the same capped `wave`. Each `Agent` call contains only `description` and `prompt`, requests raw JSON with the five exact keys, and returns to controller-side `PLAYER_SCHEMA` validation. `Promise.all` remains limited to the bounded, independent wave.
 
-The invocation explicitly supplies `situation` and `explicitlyRequestedModel`; `userRequestedModel` is assigned from that explicit field and remains `undefined` when the user named no model. The conditional model field therefore never guesses an override. The controller owns Codex task names: each combines the wave number with one run-wide monotonic dispatch index, so it is unique and contains only lowercase letters, digits, and underscores. The player's human name stays in `message`. `wait_agent` accepts only its optional `timeout_ms`; it signals a mailbox update, not a worker payload, and can return without a player final. Each collector stops starting waits at its wall-clock deadline; Codex's 10-second minimum timeout bounds a final overshoot. Before a correction request, the collector rechecks the deadline; expiry leaves that canonical task pending for the normal `collectionGaps` path and continues processing other delivered finals. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`. Unreturned canonical player tasks become `collectionGaps`, never invented `PLAYER_SCHEMA` fields, and the board synthesis receives those gaps. The controller never waits inside concurrent player dispatches or rereads stale responses after an unrelated update.
+The invocation explicitly supplies `situation` and `explicitlyRequestedModel`; `userRequestedModel` is assigned from that explicit field and remains `undefined` when the user named no model. The conditional model field therefore never guesses an override. Before dispatch, `list_agents` supplies every existing canonical task name. The controller selects the first unused `rN` component and combines it with the wave number and a run-wide monotonic dispatch index, producing collision-free names containing only lowercase letters, digits, and underscores. The player's human name stays in `message`.
+
+Codex's team limit is four slots including the controller. Each wave derives free capacity from non-completed `list_agents` entries. `wait_agent` accepts only `timeout_ms`; it signals a mailbox update, not a worker payload. The next `list_agents` snapshot exposes completed text as `agent_status.completed`, keyed by `agent_name`. Codex may also deliver a `FINAL_ANSWER` message directly into the controller conversation; treat its sender task name and payload identically. Each collector stops starting waits at its wall-clock deadline, interrupts every task still pending, and emits a player-keyed gap. Undispatched players and players beyond the cap also receive explicit gaps. Results retain `{ workerTask, player, response }`, so a missing response cannot shift attribution.
 
 ### Synthesis
 
@@ -261,16 +392,26 @@ When each turn depends on prior response, run sequentially:
 let state = { situation: "...", history: [] };
 
 for (let turn = 0; turn < 4; turn++) {
-  const response = await Agent({
+  let rawResponse = await Agent({
     description: `Wargame turn ${turn + 1}`,
     prompt: `Prior history: ${JSON.stringify(state.history)}
 
 User's move: ${userMove}
 Opponent: [role] with goals [X] and leverage [Y]
 
-What's opponent's counter-move this turn?`,
-    schema: ADVERSARY_SCHEMA
+What's opponent's counter-move this turn?
+Return only raw JSON with exactly these keys: counter, exploits, escalation, weakPoint.`
   });
+  let response = validateJsonObject(rawResponse, ADVERSARY_SCHEMA);
+  if (!response) {
+    rawResponse = await Agent({
+      description: `Correct wargame turn ${turn + 1} JSON`,
+      prompt: `The prior response was invalid: ${rawResponse}
+Return only raw JSON with exactly these keys: counter, exploits, escalation, weakPoint.`
+    });
+    response = validateJsonObject(rawResponse, ADVERSARY_SCHEMA);
+  }
+  if (!response) throw new Error(`Wargame turn ${turn + 1} returned invalid JSON.`);
 
   state.history.push({ user: userMove, opponent: response.counter });
 

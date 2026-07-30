@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
 const errors = [];
@@ -113,10 +114,43 @@ function checkStaticContract(relativePath, source, requirements) {
   }
 }
 
-function extractFencedJavaScript(source, marker) {
+function fencedJavaScriptBlocks(source) {
   return [...source.matchAll(/```javascript\s*\n([\s\S]*?)```/g)]
-    .map((match) => match[1])
-    .find((block) => block.includes(marker)) ?? null;
+    .map((match) => match[1]);
+}
+
+function javaScriptSyntaxError(source) {
+  // --check parses stdin as an ES module and never evaluates the Markdown code.
+  const result = spawnSync(
+    process.execPath,
+    ["--input-type=module", "--check", "-"],
+    {
+      input: source,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    },
+  );
+  if (result.status === 0) return null;
+  const diagnostic = (result.stderr || result.error?.message || "syntax check failed")
+    .split("\n")
+    .find((line) => line.trim().length > 0);
+  return diagnostic ?? "syntax check failed";
+}
+
+function extractFencedJavaScript(source, marker) {
+  const block = fencedJavaScriptBlocks(source)
+    .find((candidate) => candidate.includes(marker)) ?? null;
+  return block !== null && javaScriptSyntaxError(block) === null ? block : null;
+}
+
+function checkFencedJavaScriptSyntax(relativePath, source) {
+  fencedJavaScriptBlocks(source).forEach((block, index) => {
+    const syntaxError = javaScriptSyntaxError(block);
+    check(
+      syntaxError === null,
+      `${relativePath} JavaScript fence ${index + 1} must parse without execution: ${syntaxError}`,
+    );
+  });
 }
 
 function findMatchingBrace(source, openingBraceIndex) {
@@ -207,6 +241,11 @@ function checkFunctionBodyFixtures() {
     getFunctionBody(destructuredParameterFixture, "run")?.includes("return synthesizeBoard"),
     "function-body extractor must handle destructured parameters",
   );
+  const malformedFenceFixture = "```javascript\nconst broken = ;\n```";
+  check(
+    extractFencedJavaScript(malformedFenceFixture, "broken") === null,
+    "JavaScript fence extractor must reject malformed JavaScript without evaluating it",
+  );
 }
 
 function controllerTaskNameViolations(source, {
@@ -228,16 +267,31 @@ function controllerTaskNameViolations(source, {
   const assignment = source.match(assignmentPattern);
   const taskNameTemplate = assignment?.[1] ?? "";
   const renderedTemplate = taskNameTemplate
+    .split("${runComponent}").join("r0")
     .split(`\${${waveName}}`).join("0")
     .split(`\${${counterName}++}`).join("0");
+  const initialSnapshot = "const initialAgentSnapshot = await list_agents({});";
+  const runComponentAssignment =
+    `const runComponent = chooseUnusedRunComponent(initialAgentSnapshot.agents, "${prefix}");`;
+  const initialSnapshotIndex = source.indexOf(initialSnapshot);
+  const runComponentIndex = source.indexOf(runComponentAssignment);
 
   if (
     !taskNameTemplate ||
     renderedTemplate.includes("${") ||
     !/^[a-z0-9_]+$/.test(renderedTemplate) ||
-    !taskNameTemplate.startsWith(`${prefix}_w\${${waveName}}_`)
+    !taskNameTemplate.startsWith(`${prefix}_\${runComponent}_w\${${waveName}}_`)
   ) {
     violations.push("generate controller-owned task names that match ^[a-z0-9_]+$");
+  }
+  if (
+    initialSnapshotIndex === -1 ||
+    runComponentIndex === -1 ||
+    initialSnapshotIndex >= runComponentIndex ||
+    runComponentIndex >= loopIndex ||
+    !taskNameTemplate.includes("${runComponent}")
+  ) {
+    violations.push("derive an unused run component from list_agents for cross-invocation uniqueness");
   }
   if (
     counterInitializationIndex === -1 ||
@@ -285,6 +339,31 @@ function checkControllerTaskNameFixtures() {
     taskNameVariable: "workerTaskName",
     waveName: "wave",
   };
+  check(
+    controllerTaskNameViolations(validFixture, fixtureOptions).includes(
+      "derive an unused run component from list_agents for cross-invocation uniqueness",
+    ),
+    "Codex task-name checker must reject names reused by a later invocation",
+  );
+  const collisionSafeFixture = [
+    "const initialAgentSnapshot = await list_agents({});",
+    'const runComponent = chooseUnusedRunComponent(initialAgentSnapshot.agents, "worker");',
+    "let nextWorkerDispatchIndex = 0;",
+    "for (let wave = 0; wave < 5; wave++) {",
+    "  const workerTaskName = `worker_${runComponent}_w${wave}_${nextWorkerDispatchIndex++}`;",
+    "  return dispatchWorker(workerTaskName, task);",
+    "}",
+    "async function dispatchWorker(workerTaskName, task) {",
+    "  return spawn_agent({",
+    "    task_name: workerTaskName,",
+    "    message: `Task: ${task.name}`,",
+    "  });",
+    "}",
+  ].join("\n");
+  check(
+    controllerTaskNameViolations(collisionSafeFixture, fixtureOptions).length === 0,
+    "Codex task-name checker must accept an unused list_agents-derived run component",
+  );
 
   const invalidNameFixture = validFixture.replace(
     "`worker_w${wave}_${nextWorkerDispatchIndex++}`",
@@ -442,10 +521,42 @@ function checkUnlimitedPowerLoopFixtures(loopSource) {
 }
 
 function checkExplicitModelOverrides(relativePath, source) {
-  const overrides = source.match(/\bmodel:\s*[^,}\n]+/g) ?? [];
+  const cleanSource = stripJavaScriptComments(source);
+  const overrides = cleanSource.match(/\bmodel:\s*[^,}\n]+/g) ?? [];
+  const assignments = [
+    ...cleanSource.matchAll(
+      /\b(?:const|let|var)\s+userRequestedModel\s*=\s*([^;]+);/g,
+    ),
+  ].map((match) => match[1].trim());
+  const assignmentOperators =
+    cleanSource.match(/\buserRequestedModel\s*(?:=(?!=)|\|\|=|&&=|\?\?=)/g) ?? [];
   check(
-    overrides.length > 0 && overrides.every((override) => override.trim() === "model: userRequestedModel"),
+    overrides.length > 0 &&
+      overrides.every((override) => override.trim() === "model: userRequestedModel") &&
+      assignments.length === 1 &&
+      assignments[0] === "explicitlyRequestedModel" &&
+      assignmentOperators.length === 1,
     `${relativePath} must not set an implicit Codex model override`,
+  );
+}
+
+function checkExplicitModelOverrideFixtures() {
+  const forcedModelWithDeadDecoy = [
+    "async function run({ explicitlyRequestedModel }) {",
+    "  if (false) { const userRequestedModel = explicitlyRequestedModel; }",
+    '  const userRequestedModel = "forced-model";',
+    "  return spawn_agent({",
+    "    ...(userRequestedModel ? { model: userRequestedModel } : {}),",
+    "  });",
+    "}",
+  ].join("\n");
+  const previousErrorCount = errors.length;
+  checkExplicitModelOverrides("forced-model fixture", forcedModelWithDeadDecoy);
+  const fixturePassed = errors.length === previousErrorCount;
+  errors.splice(previousErrorCount);
+  check(
+    !fixturePassed,
+    "explicit-model checker must reject a forced model with a dead explicit-assignment decoy",
   );
 }
 
@@ -563,10 +674,15 @@ function getJavaScriptWhileLoops(source) {
     const closingBrace = source[openingBrace] === "{"
       ? findMatchingDelimiter(source, openingBrace, "{", "}")
       : -1;
+    const normalizedCondition = source
+      .slice(openingParenthesis + 1, closingParenthesis)
+      .replace(/\s+/g, "")
+      .replace(/pendingWorkerTasks\[(?:"size"|'size'|`size`)\]/g, "pendingWorkerTasks.size")
+      .replace(/pendingWorkerTasks\?\.size/g, "pendingWorkerTasks.size");
     loops.push({
       start: index,
       condition: source.slice(openingParenthesis + 1, closingParenthesis),
-      normalizedCondition: source.slice(openingParenthesis + 1, closingParenthesis).replace(/\s+/g, ""),
+      normalizedCondition,
       body: closingBrace === -1 ? null : source.slice(openingBrace + 1, closingBrace),
       bodyStart: closingBrace === -1 ? -1 : openingBrace + 1,
       end: closingBrace === -1 ? closingParenthesis + 1 : closingBrace + 1,
@@ -648,17 +764,79 @@ function timeoutDescriptionIsDerived(source) {
   );
 }
 
+function isDirectStatementStart(source, start) {
+  const precedingSource = source.slice(0, start).trimEnd();
+  return precedingSource.length === 0 || [";", "}"].includes(precedingSource.at(-1));
+}
+
 function getPendingWorkerFallback(source, loop) {
   const marker = "for (const workerTask of pendingWorkerTasks)";
   const starts = topLevelKeywordIndices(source, "for").filter(
     (start) => start > (loop?.end ?? Number.POSITIVE_INFINITY) && source.startsWith(marker, start),
   );
   const start = starts[0] ?? -1;
-  if (starts.length !== 1 || start === -1) return null;
+  if (
+    starts.length !== 1 ||
+    start === -1 ||
+    !isDirectStatementStart(source, start)
+  ) {
+    return null;
+  }
   const openingBrace = source.indexOf("{", start);
   if (openingBrace === -1) return null;
   const closingBrace = findMatchingDelimiter(source, openingBrace, "{", "}");
   return closingBrace === -1 ? null : { start, end: closingBrace + 1, body: source.slice(openingBrace + 1, closingBrace) };
+}
+
+function topLevelObjectProperties(source) {
+  const segments = [];
+  let segmentStart = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+  let parenthesisDepth = 0;
+  let quote = null;
+  let escaped = false;
+
+  for (let index = 0; index <= source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (["\"", "'", "`"].includes(character)) {
+      quote = character;
+      continue;
+    }
+    if (character === "{") braceDepth += 1;
+    if (character === "}") braceDepth -= 1;
+    if (character === "[") bracketDepth += 1;
+    if (character === "]") bracketDepth -= 1;
+    if (character === "(") parenthesisDepth += 1;
+    if (character === ")") parenthesisDepth -= 1;
+
+    const atTopLevel =
+      braceDepth === 0 &&
+      bracketDepth === 0 &&
+      parenthesisDepth === 0;
+    if ((character === "," && atTopLevel) || index === source.length) {
+      const segment = source.slice(segmentStart, index).trim();
+      if (segment) segments.push(segment);
+      segmentStart = index + 1;
+    }
+  }
+
+  const properties = new Map();
+  for (const segment of segments) {
+    const property = segment.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*([\s\S]+)$/);
+    if (property) properties.set(property[1], property[2].trim());
+  }
+  return properties;
 }
 
 function getStoredWorkerSchemaObject(fallback) {
@@ -685,11 +863,13 @@ function workerTimeoutResultViolations(source) {
   const topLevelReturns = topLevelKeywordIndices(cleanSource, "return");
   const returnIndex = topLevelReturns[0] ?? -1;
   const storedSchemaObject = getStoredWorkerSchemaObject(fallback);
-  const hasCompleteSchema = ["result", "done", "gap", "evidence", "confidence"].every((key) =>
-    new RegExp(`\\b${key}\\s*:`).test(storedSchemaObject ?? ""),
-  ) &&
-    /\bdone\s*:\s*false\s*,/.test(storedSchemaObject ?? "") &&
-    /\bconfidence\s*:\s*"low"\s*,/.test(storedSchemaObject ?? "");
+  const storedProperties = topLevelObjectProperties(storedSchemaObject ?? "");
+  const requiredKeys = ["result", "done", "gap", "evidence", "confidence"];
+  const hasCompleteSchema =
+    storedProperties.size === requiredKeys.length &&
+    requiredKeys.every((key) => storedProperties.has(key)) &&
+    storedProperties.get("done") === "false" &&
+    storedProperties.get("confidence") === '"low"';
   const fallbackPrecedesSoleReturn =
     topLevelReturns.length === 1 &&
     fallback !== null &&
@@ -707,13 +887,33 @@ function playerCollectionGapViolations(collectorSource, runSource) {
   const loop = getBoundedPendingWorkerLoop(cleanCollector);
   const topLevelCollectorReturns = topLevelKeywordIndices(cleanCollector, "return");
   const collectorReturnIndex = topLevelCollectorReturns[0] ?? -1;
-  const gapStart = cleanCollector.indexOf("const collectionGaps = [...pendingWorkerTasks].map", loop?.end ?? 0);
+  const legacyGapStart = cleanCollector.indexOf(
+    "const collectionGaps = [...pendingWorkerTasks].map",
+    loop?.end ?? 0,
+  );
+  const legacyGapSource = legacyGapStart === -1 || collectorReturnIndex === -1
+    ? ""
+    : cleanCollector.slice(legacyGapStart, collectorReturnIndex);
+  const hasValidLegacyGap =
+    topLevelCollectorReturns.length === 1 &&
+    topLevelKeywordIndices(cleanCollector, "const").includes(legacyGapStart) &&
+    legacyGapStart > (loop?.end ?? Number.POSITIVE_INFINITY) &&
+    legacyGapStart < collectorReturnIndex &&
+    /\.map\(\(workerTask\)\s*=>\s*(?!undefined\b)[\s\S]+\);/.test(legacyGapSource);
+  const pendingFallback = getPendingWorkerFallback(cleanCollector, loop);
+  const hasValidInterruptedGapFallback =
+    pendingFallback !== null &&
+    pendingFallback.end < collectorReturnIndex &&
+    /await interrupt_agent\(\{ target: workerTask \}\);/.test(pendingFallback.body) &&
+    /collectionGaps\.push\(\s*\{\s*workerTask,\s*player:\s*player\.name,\s*gap:\s*`[^`]+`\s*\}\s*\);/s.test(
+      pendingFallback.body,
+    );
   const gapPrecedesSoleCollectorReturn =
     topLevelCollectorReturns.length === 1 &&
-    topLevelKeywordIndices(cleanCollector, "const").includes(gapStart) &&
-    gapStart > (loop?.end ?? Number.POSITIVE_INFINITY) &&
-    gapStart < collectorReturnIndex &&
-    /return \{ resultsByWorkerTask, collectionGaps \};/.test(cleanCollector.slice(gapStart, collectorReturnIndex + "return { resultsByWorkerTask, collectionGaps };".length));
+    /return \{ resultsByWorkerTask, collectionGaps \};/.test(
+      cleanCollector.slice(collectorReturnIndex),
+    ) &&
+    (hasValidLegacyGap || hasValidInterruptedGapFallback);
   const invalidResponseBlock = getIfBlock(cleanCollector, "!hasExactKeys(response, PLAYER_OUTPUT_KEYS)");
   const deadlineCheckIndex = invalidResponseBlock?.body.indexOf("if (Date.now() >= collectionDeadline) continue;") ?? -1;
   const followupIndex = invalidResponseBlock?.body.indexOf("await followup_task(") ?? -1;
@@ -738,6 +938,7 @@ function playerCollectionGapViolations(collectorSource, runSource) {
     /const \{ resultsByWorkerTask, collectionGaps: waveCollectionGaps \} =\s*await collectCodexPlayerFinals\(workerTasks\);/.test(waveBody) &&
     waveGapPushIndex !== -1 &&
     topLevelKeywordIndices(waveBody, "collectionGaps").includes(waveGapPushIndex) &&
+    isDirectStatementStart(waveBody, waveGapPushIndex) &&
     collectIndex < waveGapPushIndex;
 
   return timeoutDescriptionIsDerived(cleanRun) &&
@@ -745,7 +946,7 @@ function playerCollectionGapViolations(collectorSource, runSource) {
     checksDeadlineBeforeFollowup &&
     carriesGapsToSoleSynthesisReturn
     ? []
-    : ["create pending-player gaps before the collector return, guard followups by the deadline, and carry gaps to the sole synthesis return"];
+    : ["interrupt pending players, create player-keyed gaps before the collector return, guard followups by the deadline, and carry gaps to the sole synthesis return"];
 }
 
 function checkCollectorDeadlineFixtures() {
@@ -765,11 +966,13 @@ function checkCollectorDeadlineFixtures() {
   const appendedUnboundedFixture = `${boundedFixture}\nwhile (pendingWorkerTasks.size > 0) { await wait_agent({ timeout_ms: 60_000 }); }`;
   const appendedBarePendingFixture = `${boundedFixture}\nwhile (pendingWorkerTasks.size) { await wait_agent({ timeout_ms: 60_000 }); }`;
   const appendedCommentSeparatedPendingFixture = `${boundedFixture}\nwhile (pendingWorkerTasks /* still pending */ . size) { await wait_agent({ timeout_ms: 60_000 }); }`;
+  const appendedBracketPendingFixture = `${boundedFixture}\nwhile (pendingWorkerTasks["size"]) { await wait_agent({ timeout_ms: 60_000 }); }`;
   for (const fixture of [
     replacedBoundFixture,
     appendedUnboundedFixture,
     appendedBarePendingFixture,
     appendedCommentSeparatedPendingFixture,
+    appendedBracketPendingFixture,
   ]) {
     check(
       collectorDeadlineViolations(fixture).includes(
@@ -819,6 +1022,32 @@ function checkTimeoutFallbackFixtures() {
   check(
     workerTimeoutResultViolations(workerNestedFallbackFixture).length > 0,
     "worker timeout checker must reject a fallback nested in if (false)",
+  );
+  const workerDeadUnbracedFallbackFixture = [
+    "const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;",
+    "const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;",
+    "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {}",
+    "if (false) for (const workerTask of pendingWorkerTasks) {",
+    '  resultsByWorkerTask.set(workerTask, { result: "x", done: false, gap: "x", evidence: "x", confidence: "low", });',
+    "}",
+    "return workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask));",
+  ].join("\n");
+  check(
+    workerTimeoutResultViolations(workerDeadUnbracedFallbackFixture).length > 0,
+    "worker timeout checker must reject a dead unbraced fallback",
+  );
+  const workerNestedSchemaFixture = [
+    "const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;",
+    "const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;",
+    "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {}",
+    "for (const workerTask of pendingWorkerTasks) {",
+    '  resultsByWorkerTask.set(workerTask, { result: { done: false, gap: "x", evidence: "x", confidence: "low", } });',
+    "}",
+    "return workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask));",
+  ].join("\n");
+  check(
+    workerTimeoutResultViolations(workerNestedSchemaFixture).length > 0,
+    "worker timeout checker must reject nested keys masquerading as WORKER_SCHEMA",
   );
   const workerUnstoredSchemaFixture = [
     "const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;",
@@ -907,6 +1136,22 @@ function checkTimeoutFallbackFixtures() {
     playerCollectionGapViolations(playerValidCollectorFixture, playerRunWithoutGapCarryFixture).length > 0,
     "player timeout checker must reject a synthesis return that drops collection gaps",
   );
+  const playerUndefinedGapCollectorFixture = playerValidCollectorFixture.replace(
+    "(workerTask) => `No final was delivered for canonical player task ${workerTask}.`",
+    "() => undefined",
+  );
+  check(
+    playerCollectionGapViolations(playerUndefinedGapCollectorFixture, playerRunFixture).length > 0,
+    "player timeout checker must reject undefined collection gaps",
+  );
+  const playerDeadUnbracedGapRunFixture = playerRunFixture.replace(
+    "collectionGaps.push(...waveCollectionGaps);",
+    "if (false) collectionGaps.push(...waveCollectionGaps);",
+  );
+  check(
+    playerCollectionGapViolations(playerValidCollectorFixture, playerDeadUnbracedGapRunFixture).length > 0,
+    "player timeout checker must reject dead unbraced gap propagation",
+  );
   const playerNestedGapCollectorFixture = playerValidCollectorFixture.replace(
     "const collectionGaps = [...pendingWorkerTasks].map((workerTask) => `No final was delivered for canonical player task ${workerTask}.`);",
     "if (false) { const collectionGaps = [...pendingWorkerTasks].map((workerTask) => `No final was delivered for canonical player task ${workerTask}.`); }",
@@ -947,6 +1192,7 @@ checkControllerTaskNameFixtures();
 checkHooksConfigFixture();
 checkCollectorDeadlineFixtures();
 checkTimeoutFallbackFixtures();
+checkExplicitModelOverrideFixtures();
 
 if (hooksConfig) {
   for (const violation of hooksConfigViolations(
@@ -1029,6 +1275,7 @@ for (const skillName of skillNames) {
     skill.includes(`$palpatine:${skillName}`),
     `${skillPath} must document the Codex invocation`,
   );
+  checkFencedJavaScriptSyntax(skillPath, skill);
 }
 
 const adversaryPath = "plugins/palpatine/skills/adversary/SKILL.md";
@@ -1063,8 +1310,12 @@ checkStaticContract(adversaryPath, adversarySkill, [
     /await followup_task\([\s\S]*?\);\s*correctionRequested\.add\(workerTask\);/,
   ],
   [
-    "fail explicitly when a corrected Codex player response is still invalid",
-    /if \(correctionRequested\.has\(workerTask\)\) \{\s*throw new Error\(/,
+    "turn a second invalid Codex player response into an explicit keyed gap",
+    /if \(correctionRequested\.has\(workerTask\)\) \{[\s\S]*?collectionGaps\.push\(\{[\s\S]*?workerTask,[\s\S]*?player:\s*player\.name,[\s\S]*?pendingWorkerTasks\.delete\(workerTask\);/,
+  ],
+  [
+    "inspect Codex agent status through list_agents",
+    /\blist_agents\s*\(\s*\{\s*\}\s*\)/,
   ],
   [
     "collect Codex player finals in one controller mailbox loop",
@@ -1072,12 +1323,11 @@ checkStaticContract(adversaryPath, adversarySkill, [
   ],
   [
     "key Codex player collection by returned canonical task names",
-    /const pendingWorkerTasks = new Set\(workerTasks\);/,
+    /const pendingWorkerTasks = new Set\(workerTasks\.map\(\(\{ workerTask \}\) => workerTask\)\);/,
   ],
-  [
-    "consume newly delivered player finals keyed by canonical task name",
-    /const deliveredFinals = readDeliveredFinals\(\);/,
-  ],
+  ["interrupt player agents still pending at the deadline", /\binterrupt_agent\s*\(/],
+  ["preserve player identity beside every returned task", /resultsByWorkerTask\.set\(workerTask,\s*\{\s*workerTask,\s*player,\s*response/],
+  ["record an explicit gap for every undispatched player", /remainingPlayers\.splice\(0\)[\s\S]*?collectionGaps\.push/],
   ["cap player models at five", /MAX_PLAYER_MODELS\s*=\s*5/],
   [
     "bound each Codex dispatch wave by worker capacity and the five-worker cap",
@@ -1087,6 +1337,14 @@ checkStaticContract(adversaryPath, adversarySkill, [
 check(
   !/\bwait_agent\s*\(\s*\{\s*target\s*:/.test(adversarySkill),
   `${adversaryPath} must not pass an unsupported target parameter to wait_agent`,
+);
+check(
+  !/\b(?:readDeliveredFinals|getAvailableWorkerSlots)\s*\(/.test(adversarySkill),
+  `${adversaryPath} must use only exposed Codex agent tools`,
+);
+check(
+  !/\bAgent\s*\(\s*\{[\s\S]*?\bschema\s*:/.test(adversarySkill),
+  `${adversaryPath} Claude Agent calls must not pass the unsupported schema field`,
 );
 checkExplicitModelOverrides(adversaryPath, adversarySkill);
 for (const violation of controllerTaskNameViolations(adversarySkill, {
@@ -1114,9 +1372,8 @@ for (const violation of playerCollectionGapViolations(adversaryCollectorBody ?? 
   errors.push(`${adversaryPath} must ${violation}`);
 }
 check(
-  adversaryCollectorBody?.includes("for (const [workerTask, response] of deliveredFinals)") &&
-    !adversaryCollectorBody.includes("readDeliveredFinal("),
-  `${adversaryPath} must consume newly delivered player finals in its controller loop`,
+  adversaryCollectorBody?.includes("agent.agent_status.completed"),
+  `${adversaryPath} must collect completed player payloads from list_agents status`,
 );
 
 const unlimitedPowerPath = "plugins/palpatine/skills/unlimited-power/SKILL.md";
@@ -1142,6 +1399,10 @@ checkStaticContract(unlimitedPowerPath, unlimitedPowerSkill, [
     /async function runUnlimitedPower\(\{\s*objective,\s*explicitlyRequestedModel,\s*\}\) \{[\s\S]*?const userRequestedModel = explicitlyRequestedModel;/,
   ],
   [
+    "inspect Codex agent status through list_agents",
+    /\blist_agents\s*\(\s*\{\s*\}\s*\)/,
+  ],
+  [
     "use wait_agent without an unsupported target parameter",
     /\bwait_agent\s*\(\s*\{\s*timeout_ms\s*:/,
   ],
@@ -1149,7 +1410,8 @@ checkStaticContract(unlimitedPowerPath, unlimitedPowerSkill, [
   ["pass an explicit user-requested model through the dispatch loop", /dispatchWorker\(workerTaskName, task, done, userRequestedModel\)/],
   ["collect Codex worker finals in one controller mailbox loop", /async function collectCodexWorkerFinals\(workerTasks\)/],
   ["key Codex worker collection by returned canonical task names", /const pendingWorkerTasks = new Set\(workerTasks\);/],
-  ["consume newly delivered worker finals keyed by canonical task name", /const deliveredFinals = readDeliveredFinals\(\);/],
+  ["interrupt worker agents still pending at the deadline", /\binterrupt_agent\s*\(/],
+  ["document a Claude Agent call with valid required fields", /\bAgent\s*\(\s*\{\s*description:[\s\S]*?prompt:/],
 ]);
 const unlimitedPowerLoop = extractFencedJavaScript(unlimitedPowerSkill, "defineAcceptanceCheck");
 check(
@@ -1165,6 +1427,14 @@ if (unlimitedPowerLoop) {
 check(
   !/\bwait_agent\s*\(\s*\{\s*target\s*:/.test(unlimitedPowerSkill),
   `${unlimitedPowerPath} must not pass an unsupported target parameter to wait_agent`,
+);
+check(
+  !/\b(?:readDeliveredFinals|getAvailableWorkerSlots)\s*\(/.test(unlimitedPowerSkill),
+  `${unlimitedPowerPath} must use only exposed Codex agent tools`,
+);
+check(
+  !/\bAgent\s*\(\s*\{[\s\S]*?\bschema\s*:/.test(unlimitedPowerSkill),
+  `${unlimitedPowerPath} Claude Agent calls must not pass the unsupported schema field`,
 );
 checkExplicitModelOverrides(unlimitedPowerPath, unlimitedPowerSkill);
 for (const violation of controllerTaskNameViolations(unlimitedPowerSkill, {
@@ -1191,9 +1461,8 @@ for (const violation of workerTimeoutResultViolations(unlimitedPowerCollectorBod
   errors.push(`${unlimitedPowerPath} must ${violation}`);
 }
 check(
-  unlimitedPowerCollectorBody?.includes("for (const [workerTask, response] of deliveredFinals)") &&
-    !unlimitedPowerCollectorBody.includes("readDeliveredFinal("),
-  `${unlimitedPowerPath} must consume newly delivered worker finals in its controller loop`,
+  unlimitedPowerCollectorBody?.includes("agent.agent_status.completed"),
+  `${unlimitedPowerPath} must collect completed worker payloads from list_agents status`,
 );
 
 const palpatinePath = "plugins/palpatine/skills/palpatine/SKILL.md";
@@ -1234,6 +1503,22 @@ check(
   readme.includes("Node.js must be installed and available as `node` on `PATH`") &&
     readme.includes("node --version"),
   "README must declare and show how to validate the Node.js hook prerequisite",
+);
+const nodePrerequisiteIndex = readme.indexOf("Node.js must be installed and available as `node` on `PATH`");
+const codexInstallIndex = readme.indexOf("### Codex (shell)");
+check(
+  nodePrerequisiteIndex !== -1 &&
+    codexInstallIndex !== -1 &&
+    nodePrerequisiteIndex < codexInstallIndex,
+  "README must check the Node.js hook prerequisite before plugin installation",
+);
+check(
+  readme.includes("/reload-plugins"),
+  "README must reload Claude plugins after installation",
+);
+check(
+  /start a new Codex task/i.test(readme),
+  "README must tell Codex users to start a new task after installation",
 );
 const readmeBashBlocks = [...readme.matchAll(/```bash\s*\n([\s\S]*?)```/g)]
   .map((match) => match[1]);
@@ -1277,6 +1562,12 @@ for (const command of [
 ]) {
   check(activationHook.includes(command), `activate.js must document ${command}`);
 }
+
+check(
+  !fs.existsSync(path.join(root, "docs", "superpowers")) ||
+    listFiles(path.join(root, "docs", "superpowers")).length === 0,
+  "repository must not recreate docs/superpowers planning documentation",
+);
 
 const packagedTextFiles = [
   path.join(root, "README.md"),

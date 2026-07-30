@@ -45,12 +45,22 @@ $palpatine:palpatine my boss keeps taking credit for my work in meetings
 
 ## Installation
 
+### Hook prerequisite
+
+Both hosts start the packaged JavaScript hook with Node.js on every `SessionStart`, even when the always-on marker is off. Node.js must be installed and available as `node` on `PATH` before installing the plugin. Validate the runtime in a shell or PowerShell:
+
+```text
+node --version
+```
+
 ### Codex (shell)
 
 ```bash
 codex plugin marketplace add NovusEdge/palpatine
 codex plugin add palpatine@palpatine
 ```
+
+Start a new Codex task after installation so the plugin is loaded.
 
 ### Claude Code (in-app)
 
@@ -59,14 +69,7 @@ Run these slash commands inside Claude Code:
 ```text
 /plugin marketplace add NovusEdge/palpatine
 /plugin install palpatine@palpatine
-```
-
-### Hook prerequisite
-
-Always-on mode on either host runs the packaged JavaScript hook. Node.js must be installed and available as `node` on `PATH`. Validate the runtime in a shell or PowerShell before enabling the mode:
-
-```text
-node --version
+/reload-plugins
 ```
 
 Invoke skills with `/palpatine:<skill>` in Claude Code or `$palpatine:<skill>` in Codex.
