@@ -144,7 +144,7 @@ async function collectCodexWorkerFinals(workerTasks) {
   const pendingWorkerTasks = new Set(workerTasks);
   const resultsByWorkerTask = new Map();
   const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;
-  const COLLECTION_TIMEOUT_DESCRIPTION = "120 seconds";
+  const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;
 
   while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {
     const remainingMs = collectionDeadline - Date.now();

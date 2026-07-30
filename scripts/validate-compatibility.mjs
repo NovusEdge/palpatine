@@ -190,10 +190,23 @@ function getIfBlock(source, condition) {
 function getFunctionBody(source, functionName) {
   const start = source.indexOf(`async function ${functionName}(`);
   if (start === -1) return null;
-  const openingBrace = source.indexOf("{", start);
+  const functionSignatureEnd = source.indexOf(") {", start);
+  const openingBrace = functionSignatureEnd === -1 ? -1 : functionSignatureEnd + 2;
   if (openingBrace === -1) return null;
   const closingBrace = findMatchingBrace(source, openingBrace);
   return closingBrace === -1 ? null : source.slice(openingBrace + 1, closingBrace);
+}
+
+function checkFunctionBodyFixtures() {
+  const destructuredParameterFixture = [
+    "async function run({ situation, explicitlyRequestedModel }) {",
+    "  return synthesizeBoard({ situation, explicitlyRequestedModel });",
+    "}",
+  ].join("\n");
+  check(
+    getFunctionBody(destructuredParameterFixture, "run")?.includes("return synthesizeBoard"),
+    "function-body extractor must handle destructured parameters",
+  );
 }
 
 function controllerTaskNameViolations(source, {
@@ -436,17 +449,190 @@ function checkExplicitModelOverrides(relativePath, source) {
   );
 }
 
-function collectorDeadlineViolations(source) {
-  const violations = [];
-  const hasDeadline = /const collectionDeadline = Date\.now\(\) \+ COLLECTION_TIMEOUT_MS;/.test(source);
-  const hasDeadlineBoundedLoop = /while \(pendingWorkerTasks\.size > 0 && Date\.now\(\) < collectionDeadline\)/.test(source);
-  const hasRemainingWait = /const remainingMs = collectionDeadline - Date\.now\(\);[\s\S]*?if \(remainingMs <= 0\) break;[\s\S]*?const waitMs = Math\.max\(10_000, Math\.min\(60_000, remainingMs\)\);[\s\S]*?await wait_agent\(\{ timeout_ms: waitMs \}\);/.test(source);
+function stripJavaScriptComments(source) {
+  let result = "";
+  let quote = null;
+  let escaped = false;
 
-  if (!hasDeadline || !hasDeadlineBoundedLoop || !hasRemainingWait) {
-    violations.push("bound mailbox collection with one wall-clock deadline");
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    const nextCharacter = source[index + 1];
+
+    if (quote) {
+      result += character;
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (["\"", "'", "`"].includes(character)) {
+      quote = character;
+      result += character;
+      continue;
+    }
+    if (character === "/" && nextCharacter === "/") {
+      while (index < source.length && source[index] !== "\n") index += 1;
+      if (source[index] === "\n") result += "\n";
+      continue;
+    }
+    if (character === "/" && nextCharacter === "*") {
+      index += 2;
+      while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) {
+        if (source[index] === "\n") result += "\n";
+        index += 1;
+      }
+      index += 1;
+      continue;
+    }
+    result += character;
   }
 
-  return violations;
+  return result;
+}
+
+function getBoundedPendingWorkerLoop(source) {
+  const marker = "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline)";
+  const start = source.indexOf(marker);
+  if (start === -1) return null;
+  const openingBrace = source.indexOf("{", start);
+  if (openingBrace === -1) return null;
+  const closingBrace = findMatchingBrace(source, openingBrace);
+  return closingBrace === -1 ? null : { start, end: closingBrace + 1, body: source.slice(openingBrace + 1, closingBrace) };
+}
+
+function topLevelKeywordIndices(source, keyword) {
+  const indices = [];
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (["\"", "'", "`"].includes(character)) {
+      quote = character;
+      continue;
+    }
+    if (character === "{") {
+      depth += 1;
+      continue;
+    }
+    if (character === "}") {
+      depth -= 1;
+      continue;
+    }
+    if (
+      depth === 0 &&
+      source.startsWith(keyword, index) &&
+      !/[A-Za-z0-9_$]/.test(source[index - 1] ?? "") &&
+      !/[A-Za-z0-9_$]/.test(source[index + keyword.length] ?? "")
+    ) {
+      indices.push(index);
+      index += keyword.length - 1;
+    }
+  }
+
+  return indices;
+}
+
+function collectorDeadlineViolations(source) {
+  const cleanSource = stripJavaScriptComments(source);
+  const pendingLoops = [...cleanSource.matchAll(
+    /\bwhile\s*\(\s*pendingWorkerTasks\.size\s*>\s*0(?:\s*&&\s*Date\.now\(\)\s*<\s*collectionDeadline)?\s*\)/g,
+  )];
+  const hasDeadline = /const collectionDeadline = Date\.now\(\) \+ COLLECTION_TIMEOUT_MS;/.test(cleanSource);
+  const boundedLoop = getBoundedPendingWorkerLoop(cleanSource);
+  const hasRemainingWait = /const remainingMs = collectionDeadline - Date\.now\(\);[\s\S]*?if \(remainingMs <= 0\) break;[\s\S]*?const waitMs = Math\.max\(10_000, Math\.min\(60_000, remainingMs\)\);[\s\S]*?await wait_agent\(\{ timeout_ms: waitMs \}\);/.test(boundedLoop?.body ?? "");
+
+  if (!hasDeadline || pendingLoops.length !== 1 || !boundedLoop || !hasRemainingWait) {
+    return ["use exactly one deadline-bounded pending-worker collection loop"];
+  }
+  return [];
+}
+
+function timeoutDescriptionIsDerived(source) {
+  return /const COLLECTION_TIMEOUT_DESCRIPTION = `\$\{COLLECTION_TIMEOUT_MS \/ 1_000\} seconds`;/.test(
+    stripJavaScriptComments(source),
+  );
+}
+
+function getPendingWorkerFallback(source, loop) {
+  const marker = "for (const workerTask of pendingWorkerTasks)";
+  const start = source.indexOf(marker, loop?.end ?? 0);
+  if (start === -1) return null;
+  const openingBrace = source.indexOf("{", start);
+  if (openingBrace === -1) return null;
+  const closingBrace = findMatchingBrace(source, openingBrace);
+  return closingBrace === -1 ? null : { start, end: closingBrace + 1, body: source.slice(openingBrace + 1, closingBrace) };
+}
+
+function workerTimeoutResultViolations(source) {
+  const cleanSource = stripJavaScriptComments(source);
+  const loop = getBoundedPendingWorkerLoop(cleanSource);
+  const fallback = getPendingWorkerFallback(cleanSource, loop);
+  const topLevelReturns = topLevelKeywordIndices(cleanSource, "return");
+  const returnIndex = topLevelReturns[0] ?? -1;
+  const hasCompleteSchema = ["result", "done", "gap", "evidence", "confidence"].every((key) =>
+    new RegExp(`\\b${key}\\s*:`).test(fallback?.body ?? ""),
+  ) &&
+    /\bdone\s*:\s*false\s*,/.test(fallback?.body ?? "") &&
+    /\bconfidence\s*:\s*"low"\s*,/.test(fallback?.body ?? "");
+  const fallbackPrecedesSoleReturn =
+    topLevelReturns.length === 1 &&
+    fallback !== null &&
+    fallback.start > (loop?.end ?? Number.POSITIVE_INFINITY) &&
+    fallback.end < returnIndex;
+
+  return timeoutDescriptionIsDerived(cleanSource) && hasCompleteSchema && fallbackPrecedesSoleReturn
+    ? []
+    : ["place a complete low-confidence WORKER_SCHEMA timeout fallback before the collector's sole top-level return"];
+}
+
+function playerCollectionGapViolations(collectorSource, runSource) {
+  const cleanCollector = stripJavaScriptComments(collectorSource);
+  const cleanRun = stripJavaScriptComments(runSource);
+  const loop = getBoundedPendingWorkerLoop(cleanCollector);
+  const topLevelCollectorReturns = topLevelKeywordIndices(cleanCollector, "return");
+  const collectorReturnIndex = topLevelCollectorReturns[0] ?? -1;
+  const gapStart = cleanCollector.indexOf("const collectionGaps = [...pendingWorkerTasks].map", loop?.end ?? 0);
+  const gapPrecedesSoleCollectorReturn =
+    topLevelCollectorReturns.length === 1 &&
+    gapStart > (loop?.end ?? Number.POSITIVE_INFINITY) &&
+    gapStart < collectorReturnIndex &&
+    /return \{ resultsByWorkerTask, collectionGaps \};/.test(cleanCollector.slice(gapStart, collectorReturnIndex + "return { resultsByWorkerTask, collectionGaps };".length));
+  const invalidResponseBlock = getIfBlock(cleanCollector, "!hasExactKeys(response, PLAYER_OUTPUT_KEYS)");
+  const deadlineCheckIndex = invalidResponseBlock?.body.indexOf("if (Date.now() >= collectionDeadline) break;") ?? -1;
+  const followupIndex = invalidResponseBlock?.body.indexOf("await followup_task(") ?? -1;
+  const checksDeadlineBeforeFollowup = deadlineCheckIndex !== -1 && followupIndex !== -1 && deadlineCheckIndex < followupIndex;
+  const topLevelRunReturns = topLevelKeywordIndices(cleanRun, "return");
+  const runReturnIndex = topLevelRunReturns[0] ?? -1;
+  const waveGapPushIndex = cleanRun.indexOf("collectionGaps.push(...waveCollectionGaps);");
+  const carriesGapsToSoleSynthesisReturn =
+    topLevelRunReturns.length === 1 &&
+    /const \{ resultsByWorkerTask, collectionGaps: waveCollectionGaps \} =\s*await collectCodexPlayerFinals\(workerTasks\);/.test(cleanRun) &&
+    waveGapPushIndex !== -1 &&
+    waveGapPushIndex < runReturnIndex &&
+    /return synthesizeBoard\(\{ players, results, collectionGaps \}\);/.test(cleanRun.slice(runReturnIndex));
+
+  return timeoutDescriptionIsDerived(cleanRun) &&
+    gapPrecedesSoleCollectorReturn &&
+    checksDeadlineBeforeFollowup &&
+    carriesGapsToSoleSynthesisReturn
+    ? []
+    : ["create pending-player gaps before the collector return, guard followups by the deadline, and carry gaps to the sole synthesis return"];
 }
 
 function checkCollectorDeadlineFixtures() {
@@ -459,35 +645,79 @@ function checkCollectorDeadlineFixtures() {
     "  await wait_agent({ timeout_ms: waitMs });",
     "}",
   ].join("\n");
-  const unboundedFixture = boundedFixture.replace(
+  const replacedBoundFixture = boundedFixture.replace(
     "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline)",
     "while (pendingWorkerTasks.size > 0)",
   );
+  const appendedUnboundedFixture = `${boundedFixture}\nwhile (pendingWorkerTasks.size > 0) { await wait_agent({ timeout_ms: 60_000 }); }`;
+  for (const fixture of [replacedBoundFixture, appendedUnboundedFixture]) {
+    check(
+      collectorDeadlineViolations(fixture).includes(
+        "use exactly one deadline-bounded pending-worker collection loop",
+      ),
+      "mailbox collector checker must reject every unbounded pending-worker loop",
+    );
+  }
+}
+
+function checkTimeoutFallbackFixtures() {
+  const workerEarlyReturnFixture = [
+    "const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;",
+    "const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;",
+    "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {}",
+    "return workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask));",
+    "// for (const workerTask of pendingWorkerTasks) { resultsByWorkerTask.set(workerTask, { result: \"x\", done: false, gap: \"x\", evidence: \"x\", confidence: \"low\" }); }",
+  ].join("\n");
   check(
-    collectorDeadlineViolations(unboundedFixture).includes(
-      "bound mailbox collection with one wall-clock deadline",
-    ),
-    "mailbox collector checker must reject an unbounded collector loop",
+    workerTimeoutResultViolations(workerEarlyReturnFixture).length > 0,
+    "worker timeout checker must reject an early return with only commented fallback text",
   );
-}
 
-function workerTimeoutResultViolations(source) {
-  const hasTimeoutDescription = /const COLLECTION_TIMEOUT_DESCRIPTION = "\d+ seconds";/.test(source);
-  const hasTimeoutResult = /for \(const workerTask of pendingWorkerTasks\) \{[\s\S]*?done: false,[\s\S]*?gap: `Worker \$\{workerTask\} did not return before the \$\{COLLECTION_TIMEOUT_DESCRIPTION\} collection deadline\.`[\s\S]*?evidence: `No final was delivered for canonical worker task \$\{workerTask\} before the \$\{COLLECTION_TIMEOUT_DESCRIPTION\} collection deadline\.`[\s\S]*?confidence: "low",/.test(source);
-  return hasTimeoutDescription && hasTimeoutResult
-    ? []
-    : ["represent every timed-out worker as a low-confidence WORKER_SCHEMA result with a human-readable deadline"];
-}
+  const playerEarlyReturnFixture = [
+    "const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;",
+    "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {",
+    "  if (!hasExactKeys(response, PLAYER_OUTPUT_KEYS)) {",
+    "    if (Date.now() >= collectionDeadline) break;",
+    "    await followup_task({ target: workerTask });",
+    "  }",
+    "}",
+    "return { resultsByWorkerTask, collectionGaps };",
+    "// const collectionGaps = [...pendingWorkerTasks].map((workerTask) => `No final was delivered for canonical player task ${workerTask}.`);",
+  ].join("\n");
+  const playerRunFixture = [
+    "const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;",
+    "const { resultsByWorkerTask, collectionGaps: waveCollectionGaps } = await collectCodexPlayerFinals(workerTasks);",
+    "collectionGaps.push(...waveCollectionGaps);",
+    "return synthesizeBoard({ players, results, collectionGaps });",
+  ].join("\n");
+  check(
+    playerCollectionGapViolations(playerEarlyReturnFixture, playerRunFixture).length > 0,
+    "player timeout checker must reject an early return with only commented gap text",
+  );
 
-function playerCollectionGapViolations(source) {
-  const hasTimeoutDescription = /const COLLECTION_TIMEOUT_DESCRIPTION = "\d+ seconds";/.test(source);
-  const hasCollectionGaps = /const collectionGaps = \[\.\.\.pendingWorkerTasks\]\.map\(\(workerTask\) =>[\s\S]*?`No final was delivered for canonical player task \$\{workerTask\} before the \$\{COLLECTION_TIMEOUT_DESCRIPTION\} collection deadline\.`/.test(source);
-  const returnsGaps = /return \{ resultsByWorkerTask, collectionGaps \};/.test(source);
-  const carriesGapsToSynthesis = /collectionGaps\.push\(\.\.\.waveCollectionGaps\);[\s\S]*?synthesizeBoard\(\{ players, results, collectionGaps \}\);/.test(source);
-  const followupUsesSameDeadline = /while \(pendingWorkerTasks\.size > 0 && Date\.now\(\) < collectionDeadline\) \{[\s\S]*?await followup_task\(/.test(source);
-  return hasTimeoutDescription && hasCollectionGaps && returnsGaps && carriesGapsToSynthesis && followupUsesSameDeadline
-    ? []
-    : ["return canonical-player collection gaps, keep correction waits under the deadline, and carry gaps into synthesis"];
+  const playerValidCollectorFixture = [
+    "const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;",
+    "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {",
+    "  if (!hasExactKeys(response, PLAYER_OUTPUT_KEYS)) {",
+    "    if (Date.now() >= collectionDeadline) break;",
+    "    await followup_task({ target: workerTask });",
+    "  }",
+    "}",
+    "const collectionGaps = [...pendingWorkerTasks].map((workerTask) => `No final was delivered for canonical player task ${workerTask}.`);",
+    "return { resultsByWorkerTask, collectionGaps };",
+  ].join("\n");
+  check(
+    playerCollectionGapViolations(playerValidCollectorFixture, playerRunFixture).length === 0,
+    "player timeout checker must accept gaps created before the collector return",
+  );
+  const playerRunWithoutGapCarryFixture = playerRunFixture.replace(
+    "collectionGaps.push(...waveCollectionGaps);\n",
+    "",
+  );
+  check(
+    playerCollectionGapViolations(playerValidCollectorFixture, playerRunWithoutGapCarryFixture).length > 0,
+    "player timeout checker must reject a synthesis return that drops collection gaps",
+  );
 }
 
 const claudeManifest = readJson(".claude-plugin/plugin.json");
@@ -501,9 +731,11 @@ const hooksConfig = readJson("plugins/palpatine/hooks/hooks.json");
 
 checkManifest(claudeManifest, "Claude");
 checkManifest(codexManifest, "Codex");
+checkFunctionBodyFixtures();
 checkControllerTaskNameFixtures();
 checkHooksConfigFixture();
 checkCollectorDeadlineFixtures();
+checkTimeoutFallbackFixtures();
 
 if (hooksConfig) {
   for (const violation of hooksConfigViolations(
@@ -603,7 +835,7 @@ checkStaticContract(adversaryPath, adversarySkill, [
   ],
   [
     "derive the adversary situation and model request from user input",
-    /async function runMultiPartyAdversary\(userInput\) \{[\s\S]*?const situation = getCurrentSituationFromUserInput\(userInput\);[\s\S]*?const userRequestedModel = getExplicitUserRequestedModel\(userInput\);/,
+    /async function runMultiPartyAdversary\(\{\s*situation,\s*explicitlyRequestedModel,\s*\}\) \{[\s\S]*?const userRequestedModel = explicitlyRequestedModel;/,
   ],
   [
     "require the exact Codex player output keys",
@@ -659,6 +891,7 @@ for (const violation of controllerTaskNameViolations(adversarySkill, {
 }
 const adversaryDispatchBody = getFunctionBody(adversarySkill, "dispatchCodexPlayer");
 const adversaryCollectorBody = getFunctionBody(adversarySkill, "collectCodexPlayerFinals");
+const adversaryRunBody = getFunctionBody(adversarySkill, "runMultiPartyAdversary");
 check(
   !adversaryDispatchBody?.includes("wait_agent"),
   `${adversaryPath} must not wait per player while a wave dispatches`,
@@ -666,7 +899,7 @@ check(
 for (const violation of collectorDeadlineViolations(adversaryCollectorBody ?? "")) {
   errors.push(`${adversaryPath} must ${violation}`);
 }
-for (const violation of playerCollectionGapViolations(adversarySkill)) {
+for (const violation of playerCollectionGapViolations(adversaryCollectorBody ?? "", adversaryRunBody ?? "")) {
   errors.push(`${adversaryPath} must ${violation}`);
 }
 check(
