@@ -33,23 +33,23 @@ Use JSON schemas for structured output — no parsing, automatic validation.
 const ADVERSARY_SCHEMA = {
   type: "object",
   properties: {
-    counter: { 
-      type: "string", 
-      description: "Their response move, not reasoning" 
+    counter: {
+      type: "string",
+      description: "Their response move, not reasoning"
     },
-    exploits: { 
-      type: "array", 
-      items: { type: "string" }, 
+    exploits: {
+      type: "array",
+      items: { type: "string" },
       maxItems: 3,
       description: "Target weaknesses they'd hit"
     },
-    escalation: { 
-      type: "string", 
-      description: "How they escalate if resisted" 
+    escalation: {
+      type: "string",
+      description: "How they escalate if resisted"
     },
-    weakPoint: { 
-      type: "string", 
-      description: "Where they're exposed" 
+    weakPoint: {
+      type: "string",
+      description: "Where they're exposed"
     }
   },
   required: ["counter", "exploits", "escalation", "weakPoint"]
@@ -60,21 +60,21 @@ const PLAYER_SCHEMA = {
   type: "object",
   properties: {
     move: { type: "string" },
-    alliance: { 
-      type: "string", 
-      description: "Who they side with and why it serves them" 
+    alliance: {
+      type: "string",
+      description: "Who they side with and why it serves them"
     },
-    threat: { 
-      type: "string", 
-      description: "How they could hurt target" 
+    threat: {
+      type: "string",
+      description: "How they could hurt target"
     },
-    price: { 
-      type: "string", 
-      description: "Cost to neutralize or buy them off" 
+    price: {
+      type: "string",
+      description: "Cost to neutralize or buy them off"
     },
-    threatLevel: { 
-      type: "string", 
-      enum: ["high", "medium", "low"] 
+    threatLevel: {
+      type: "string",
+      enum: ["high", "medium", "low"]
     }
   },
   required: ["move", "alliance", "threat", "price", "threatLevel"]
@@ -264,16 +264,16 @@ for (let turn = 0; turn < 4; turn++) {
   const response = await Agent({
     description: `Wargame turn ${turn + 1}`,
     prompt: `Prior history: ${JSON.stringify(state.history)}
-    
+
 User's move: ${userMove}
 Opponent: [role] with goals [X] and leverage [Y]
 
 What's opponent's counter-move this turn?`,
     schema: ADVERSARY_SCHEMA
   });
-  
+
   state.history.push({ user: userMove, opponent: response.counter });
-  
+
   // Present turn, get user's next move or synthesize endgame
 }
 ```
