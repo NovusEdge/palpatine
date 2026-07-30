@@ -221,14 +221,17 @@ function getIfBlock(source, condition) {
   };
 }
 
-function getFunctionBody(source, functionName) {
-  const start = source.indexOf(`async function ${functionName}(`);
-  if (start === -1) return null;
+function getFunctionBodyAt(source, start) {
   const functionSignatureEnd = source.indexOf(") {", start);
   const openingBrace = functionSignatureEnd === -1 ? -1 : functionSignatureEnd + 2;
   if (openingBrace === -1) return null;
   const closingBrace = findMatchingBrace(source, openingBrace);
   return closingBrace === -1 ? null : source.slice(openingBrace + 1, closingBrace);
+}
+
+function getFunctionBody(source, functionName) {
+  const start = source.indexOf(`function ${functionName}(`);
+  return start === -1 ? null : getFunctionBodyAt(source, start);
 }
 
 function checkFunctionBodyFixtures() {
@@ -560,49 +563,591 @@ function checkExplicitModelOverrideFixtures() {
   );
 }
 
-function stripJavaScriptComments(source) {
-  let result = "";
-  let quote = null;
-  let escaped = false;
+function codexAgentConsumesSlot(agent) {
+  const status = agent.agent_status;
+  if (["pending", "running", "working"].includes(status)) return true;
+  return status !== null &&
+    typeof status === "object" &&
+    !Object.prototype.hasOwnProperty.call(status, "completed");
+}
 
-  for (let index = 0; index < source.length; index += 1) {
+function fixtureAvailableCodexWorkerSlots(agents) {
+  return Math.max(0, 4 - agents.filter(codexAgentConsumesSlot).length);
+}
+
+function codexCapacityHelperViolations(source) {
+  const fencedBlocks = [
+    ...source.matchAll(/```javascript[^\S\r\n]*\r?\n([\s\S]*?)```/g),
+  ].map((match) => match[1]);
+  const analysisSource = fencedBlocks.length > 0 ? fencedBlocks.join("\n") : source;
+  const cleanSource = stripJavaScriptComments(analysisSource);
+  const searchableSource = stripJavaScriptComments(analysisSource, {
+    maskLiterals: true,
+  });
+  const functionStarts = (functionName) => [
+    ...searchableSource.matchAll(
+      new RegExp(`\\bfunction\\s+${functionName}\\s*\\(`, "g"),
+    ),
+  ].map((match) => match.index);
+  const classifierDefinitions = functionStarts("agentConsumesCodexSlot");
+  const capacityDefinitions = functionStarts("availableCodexWorkerSlots");
+  const classifierBody = classifierDefinitions.length === 1
+    ? getFunctionBodyAt(cleanSource, classifierDefinitions[0])
+    : null;
+  const capacityBody = capacityDefinitions.length === 1
+    ? getFunctionBodyAt(cleanSource, capacityDefinitions[0])
+    : null;
+  const hasCanonicalClassifier =
+    classifierDefinitions.length === 1 &&
+    /^\s*const status = agent\.agent_status;\s*if \(\["pending", "running", "working"\]\.includes\(status\)\) return true;\s*return status !== null &&\s*typeof status === "object" &&\s*!Object\.prototype\.hasOwnProperty\.call\(status, "completed"\);\s*$/s.test(
+      classifierBody ?? "",
+    );
+  const hasCanonicalCapacityHelper =
+    capacityDefinitions.length === 1 &&
+    /^\s*const activeAgentCount = agents\.filter\(agentConsumesCodexSlot\)\.length;\s*return Math\.max\(0, CODEX_TEAM_SLOT_LIMIT - activeAgentCount\);\s*$/s.test(
+      capacityBody ?? "",
+    );
+  return hasCanonicalClassifier && hasCanonicalCapacityHelper
+    ? []
+    : ["count active string statuses and every non-completed object status against the four-slot Codex limit"];
+}
+
+function checkCodexCapacityFixtures() {
+  const observedStatusFixture = [
+    { agent_name: "/root", agent_status: "running" },
+    { agent_name: "/root/worker", agent_status: "running" },
+    {
+      agent_name: "/root/done",
+      agent_status: { completed: "finished" },
+    },
+  ];
+  check(
+    fixtureAvailableCodexWorkerSlots(observedStatusFixture) === 2,
+    "Codex capacity fixture must count root and running workers but not completed agents",
+  );
+  const objectStatusFixture = [
+    { agent_name: "/root", agent_status: "running" },
+    { agent_name: "/root/queued", agent_status: { pending: true } },
+    {
+      agent_name: "/root/done",
+      agent_status: { completed: "finished" },
+    },
+  ];
+  check(
+    fixtureAvailableCodexWorkerSlots(objectStatusFixture) === 2,
+    "Codex capacity fixture must count non-completed object statuses",
+  );
+  const completedPropertyFixture = [
+    { agent_name: "/root", agent_status: "running" },
+    {
+      agent_name: "/root/done",
+      agent_status: { completed: undefined },
+    },
+  ];
+  check(
+    fixtureAvailableCodexWorkerSlots(completedPropertyFixture) === 3,
+    "Codex capacity fixture must exclude every object carrying a completed property",
+  );
+  const incompleteHelperFixture = [
+    "function availableCodexWorkerSlots(agents) {",
+    "  const activeAgentCount = agents.filter((agent) =>",
+    '    ["pending", "running", "working"].includes(agent.agent_status)',
+    "  ).length;",
+    "  return Math.max(0, CODEX_TEAM_SLOT_LIMIT - activeAgentCount);",
+    "}",
+  ].join("\n");
+  check(
+    codexCapacityHelperViolations(incompleteHelperFixture).length > 0,
+    "Codex capacity checker must reject helpers that ignore non-completed object statuses",
+  );
+  const deadDecoyCapacityFixture = [
+    "function agentConsumesCodexSlot(agent) {",
+    "  if (false) {",
+    "    const status = agent.agent_status;",
+    '    if (["pending", "running", "working"].includes(status)) return true;',
+    '    return status !== null && typeof status === "object" && typeof status.completed !== "string";',
+    "  }",
+    "  return false;",
+    "}",
+    "function availableCodexWorkerSlots(agents) {",
+    "  void agents.filter(agentConsumesCodexSlot).length;",
+    "  return 4;",
+    "}",
+  ].join("\n");
+  check(
+    codexCapacityHelperViolations(deadDecoyCapacityFixture).length > 0,
+    "Codex capacity checker must reject dead classifier and capacity decoys",
+  );
+  const deadStringCapacityFixture = [
+    "const documentationOnly = `",
+    "function agentConsumesCodexSlot(agent) {",
+    "  const status = agent.agent_status;",
+    '  if (["pending", "running", "working"].includes(status)) return true;',
+    "  return status !== null &&",
+    '    typeof status === "object" &&',
+    '    !Object.prototype.hasOwnProperty.call(status, "completed");',
+    "}",
+    "function availableCodexWorkerSlots(agents) {",
+    "  const activeAgentCount = agents.filter(agentConsumesCodexSlot).length;",
+    "  return Math.max(0, CODEX_TEAM_SLOT_LIMIT - activeAgentCount);",
+    "}",
+    "`;",
+  ].join("\n");
+  check(
+    codexCapacityHelperViolations(deadStringCapacityFixture).length > 0,
+    "Codex capacity checker must reject canonical helpers hidden inside string literals",
+  );
+  const canonicalCapacityFixture = [
+    "function agentConsumesCodexSlot(agent) {",
+    "  const status = agent.agent_status;",
+    '  if (["pending", "running", "working"].includes(status)) return true;',
+    "  return status !== null &&",
+    '    typeof status === "object" &&',
+    '    !Object.prototype.hasOwnProperty.call(status, "completed");',
+    "}",
+    "function availableCodexWorkerSlots(agents) {",
+    "  const activeAgentCount = agents.filter(agentConsumesCodexSlot).length;",
+    "  return Math.max(0, CODEX_TEAM_SLOT_LIMIT - activeAgentCount);",
+    "}",
+  ].join("\n");
+  check(
+    codexCapacityHelperViolations(canonicalCapacityFixture).length === 0,
+    "Codex capacity checker must accept the canonical active-versus-completed classifier",
+  );
+}
+
+function stripJavaScriptComments(source, { maskLiterals = false } = {}) {
+  let result = "";
+  let index = 0;
+  let canStartRegex = true;
+  let pendingControlParenthesis = false;
+  let functionHeaderKind = null;
+  let pendingAsyncFunctionDeclaration = false;
+  let previousToken = "start";
+  const parenthesisStack = [];
+  const braceStack = [];
+  const controlHeadKeywords = new Set(["catch", "for", "if", "switch", "while", "with"]);
+  const blockPrefixKeywords = new Set(["do", "else", "finally", "try"]);
+  const functionDeclarationContexts = new Set([
+    "block-close",
+    "block-opening",
+    "block-prefix",
+    "control-close",
+    "start",
+    "statement-start",
+  ]);
+  const expressionPrefixKeywords = new Set([
+    "await",
+    "case",
+    "delete",
+    "do",
+    "else",
+    "in",
+    "instanceof",
+    "new",
+    "of",
+    "return",
+    "throw",
+    "typeof",
+    "void",
+    "yield",
+  ]);
+  const isIdentifierStart = (character) => /[A-Za-z_$]/.test(character ?? "");
+  const isIdentifierPart = (character) => /[A-Za-z0-9_$]/.test(character ?? "");
+  const isLineTerminator = (character) =>
+    ["\n", "\r", "\u2028", "\u2029"].includes(character);
+
+  while (index < source.length) {
     const character = source[index];
     const nextCharacter = source[index + 1];
 
-    if (quote) {
+    if (/\s/.test(character)) {
       result += character;
-      if (escaped) {
-        escaped = false;
-      } else if (character === "\\") {
-        escaped = true;
-      } else if (character === quote) {
-        quote = null;
-      }
-      continue;
-    }
-    if (["\"", "'", "`"].includes(character)) {
-      quote = character;
-      result += character;
-      continue;
-    }
-    if (character === "/" && nextCharacter === "/") {
-      while (index < source.length && source[index] !== "\n") index += 1;
-      if (source[index] === "\n") result += "\n";
-      continue;
-    }
-    if (character === "/" && nextCharacter === "*") {
-      index += 2;
-      while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) {
-        if (source[index] === "\n") result += "\n";
-        index += 1;
-      }
       index += 1;
       continue;
     }
+
+    if (character === "/" && nextCharacter === "/") {
+      index += 2;
+      while (index < source.length && !isLineTerminator(source[index])) index += 1;
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "*") {
+      index += 2;
+      while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) {
+        if (isLineTerminator(source[index])) result += source[index];
+        index += 1;
+      }
+      if (index < source.length) index += 2;
+      continue;
+    }
+
+    if (["\"", "'", "`"].includes(character)) {
+      const quote = character;
+      let escaped = false;
+      result += maskLiterals ? " " : character;
+      index += 1;
+      while (index < source.length) {
+        const quotedCharacter = source[index];
+        result += maskLiterals && !isLineTerminator(quotedCharacter)
+          ? " "
+          : quotedCharacter;
+        index += 1;
+        if (escaped) {
+          escaped = false;
+        } else if (quotedCharacter === "\\") {
+          escaped = true;
+        } else if (quotedCharacter === quote) {
+          break;
+        }
+      }
+      canStartRegex = false;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "operand";
+      continue;
+    }
+
+    if (isIdentifierStart(character)) {
+      const identifierStart = index;
+      index += 1;
+      while (isIdentifierPart(source[index])) index += 1;
+      const identifier = source.slice(identifierStart, index);
+      result += identifier;
+      const isProperty = previousToken === "dot";
+      const isFunctionKeyword = !isProperty && identifier === "function";
+      if (isFunctionKeyword) {
+        functionHeaderKind =
+          pendingAsyncFunctionDeclaration ||
+          functionDeclarationContexts.has(previousToken)
+            ? "function-declaration"
+            : "function-expression";
+      } else if (functionHeaderKind === null) {
+        functionHeaderKind = null;
+      }
+      pendingAsyncFunctionDeclaration =
+        !isProperty &&
+        identifier === "async" &&
+        functionDeclarationContexts.has(previousToken);
+      pendingControlParenthesis =
+        !isProperty && controlHeadKeywords.has(identifier);
+      canStartRegex =
+        !isProperty &&
+        (pendingControlParenthesis || expressionPrefixKeywords.has(identifier));
+      previousToken = isFunctionKeyword
+        ? "function-keyword"
+        : !isProperty && blockPrefixKeywords.has(identifier)
+          ? "block-prefix"
+          : canStartRegex
+            ? "prefix"
+            : "operand";
+      continue;
+    }
+
+    if (/[0-9]/.test(character)) {
+      const numberStart = index;
+      index += 1;
+      while (/[A-Za-z0-9_.]/.test(source[index] ?? "")) index += 1;
+      result += source.slice(numberStart, index);
+      canStartRegex = false;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "operand";
+      continue;
+    }
+
+    if (character === "/" && canStartRegex) {
+      let escaped = false;
+      let inCharacterClass = false;
+      result += maskLiterals ? " " : character;
+      index += 1;
+      while (index < source.length) {
+        const regexCharacter = source[index];
+        result += maskLiterals && !isLineTerminator(regexCharacter)
+          ? " "
+          : regexCharacter;
+        index += 1;
+        if (escaped) {
+          escaped = false;
+        } else if (regexCharacter === "\\") {
+          escaped = true;
+        } else if (regexCharacter === "[" && !inCharacterClass) {
+          inCharacterClass = true;
+        } else if (regexCharacter === "]" && inCharacterClass) {
+          inCharacterClass = false;
+        } else if (regexCharacter === "/" && !inCharacterClass) {
+          break;
+        } else if (isLineTerminator(regexCharacter)) {
+          break;
+        }
+      }
+      while (/[A-Za-z]/.test(source[index] ?? "")) {
+        result += maskLiterals ? " " : source[index];
+        index += 1;
+      }
+      canStartRegex = false;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "operand";
+      continue;
+    }
+
+    if (character === "/") {
+      result += character;
+      index += 1;
+      if (source[index] === "=") {
+        result += source[index];
+        index += 1;
+      }
+      canStartRegex = true;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "operator";
+      continue;
+    }
+
+    if (character === "(") {
+      const parenthesisKind = pendingControlParenthesis
+        ? "control"
+        : functionHeaderKind ?? "ordinary";
+      parenthesisStack.push(parenthesisKind);
+      result += character;
+      index += 1;
+      canStartRegex = true;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "paren-opening";
+      continue;
+    }
+
+    if (character === ")") {
+      const parenthesisKind = parenthesisStack.pop() ?? "ordinary";
+      result += character;
+      index += 1;
+      canStartRegex = parenthesisKind !== "ordinary";
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = parenthesisKind === "control"
+        ? "control-close"
+        : parenthesisKind === "function-declaration"
+          ? "function-declaration-close"
+          : parenthesisKind === "function-expression"
+            ? "function-expression-close"
+            : "operand";
+      continue;
+    }
+
+    if (character === "[") {
+      result += character;
+      index += 1;
+      canStartRegex = true;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "bracket-opening";
+      continue;
+    }
+
+    if (character === "]") {
+      result += character;
+      index += 1;
+      canStartRegex = false;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "operand";
+      continue;
+    }
+
+    if (character === "{") {
+      const isFunctionBody = [
+        "function-declaration-close",
+        "function-expression-close",
+      ].includes(previousToken);
+      const isStatementBlock = [
+        "block-close",
+        "block-prefix",
+        "control-close",
+        "function-declaration-close",
+        "start",
+        "statement-start",
+      ].includes(previousToken);
+      braceStack.push(isStatementBlock);
+      result += character;
+      index += 1;
+      canStartRegex = true;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = isStatementBlock || isFunctionBody
+        ? "block-opening"
+        : "object-opening";
+      continue;
+    }
+
+    if (character === "}") {
+      const closesStatementBlock = braceStack.pop() ?? false;
+      result += character;
+      index += 1;
+      canStartRegex = closesStatementBlock;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = closesStatementBlock ? "block-close" : "operand";
+      continue;
+    }
+
+    if (character === "." || (character === "?" && nextCharacter === ".")) {
+      result += character;
+      index += 1;
+      if (character === "?") {
+        result += source[index];
+        index += 1;
+      }
+      canStartRegex = false;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "dot";
+      continue;
+    }
+
+    if (
+      (character === "+" && nextCharacter === "+") ||
+      (character === "-" && nextCharacter === "-")
+    ) {
+      result += `${character}${nextCharacter}`;
+      index += 2;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = canStartRegex ? "operator" : "operand";
+      continue;
+    }
+
+    if (character === ";") {
+      result += character;
+      index += 1;
+      canStartRegex = true;
+      pendingControlParenthesis = false;
+      functionHeaderKind = null;
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "statement-start";
+      continue;
+    }
+
+    if ([",", ":", "?"].includes(character) || /[=+\-*%&|^!~<>]/.test(character)) {
+      result += character;
+      index += 1;
+      canStartRegex = true;
+      pendingControlParenthesis = false;
+      if (!(character === "*" && functionHeaderKind !== null)) {
+        functionHeaderKind = null;
+      }
+      pendingAsyncFunctionDeclaration = false;
+      previousToken = "operator";
+      continue;
+    }
+
     result += character;
+    index += 1;
+    pendingControlParenthesis = false;
+    functionHeaderKind = null;
+    pendingAsyncFunctionDeclaration = false;
+    previousToken = "other";
   }
 
   return result;
+}
+
+function checkJavaScriptCommentStrippingFixtures() {
+  const regexCommentMarkers = [
+    "const lineMarker = /[//]/;",
+    "const blockMarker = /[/*]/;",
+  ].join("\n");
+  check(
+    stripJavaScriptComments(regexCommentMarkers) === regexCommentMarkers,
+    "comment stripper must preserve // and /* inside regex character classes",
+  );
+
+  const escapedRegexAndClass = String.raw`const escaped = /https?:\/\/example\.com/;
+const slashes = /[/][/]/;
+const escapedSlash = /a\/b[/*]/;`;
+  check(
+    stripJavaScriptComments(escapedRegexAndClass) === escapedRegexAndClass,
+    "comment stripper must preserve escaped slashes and regex character classes",
+  );
+
+  const divisionAndComments = [
+    "const quotient = total / divisor; // remove line comment",
+    "const ratio = quotient /* remove block comment */ / scale;",
+  ].join("\n");
+  const expectedDivision = [
+    "const quotient = total / divisor; ",
+    "const ratio = quotient  / scale;",
+  ].join("\n");
+  check(
+    stripJavaScriptComments(divisionAndComments) === expectedDivision,
+    "comment stripper must distinguish division from regex starts while removing real comments",
+  );
+
+  const slashContext = [
+    "const direct = /[//]/giu;",
+    "function pick() { return /[/*]/; }",
+    "if (ready) /[//]/.test(value);",
+    "const quotient = total / divisor;",
+    "const callDivision = fn() / divisor;",
+    "const objectDivision = ({}) / divisor;",
+    "const mixed = total / /[/*]/.test(value);",
+    "assigned /= divisor; // tail",
+    "const tail = /[/*]/; /* block */",
+  ].join("\n");
+  const expectedSlashContext = [
+    "const direct = /[//]/giu;",
+    "function pick() { return /[/*]/; }",
+    "if (ready) /[//]/.test(value);",
+    "const quotient = total / divisor;",
+    "const callDivision = fn() / divisor;",
+    "const objectDivision = ({}) / divisor;",
+    "const mixed = total / /[/*]/.test(value);",
+    "assigned /= divisor; ",
+    "const tail = /[/*]/; ",
+  ].join("\n");
+  check(
+    stripJavaScriptComments(slashContext) === expectedSlashContext,
+    "comment stripper must classify regex and division from token context",
+  );
+
+  const controlBlockThenRegex =
+    "if (ready) {} /[/*]/.test(value); // remove tail";
+  check(
+    stripJavaScriptComments(controlBlockThenRegex) ===
+      "if (ready) {} /[/*]/.test(value); ",
+    "comment stripper must preserve regex expression statements after control blocks",
+  );
+
+  const functionBlockThenRegex =
+    "function pick() {} /[//]/.test(value); // remove tail";
+  check(
+    stripJavaScriptComments(functionBlockThenRegex) ===
+      "function pick() {} /[//]/.test(value); ",
+    "comment stripper must preserve regex expression statements after function blocks",
+  );
+
+  const functionExpressionDivision =
+    "const quotient = function () {} / divisor; // remove tail";
+  check(
+    stripJavaScriptComments(functionExpressionDivision) ===
+      "const quotient = function () {} / divisor; ",
+    "comment stripper must keep division after function expressions",
+  );
 }
 
 function findMatchingDelimiter(source, openingIndex, openingDelimiter, closingDelimiter) {
@@ -1193,6 +1738,8 @@ checkHooksConfigFixture();
 checkCollectorDeadlineFixtures();
 checkTimeoutFallbackFixtures();
 checkExplicitModelOverrideFixtures();
+checkCodexCapacityFixtures();
+checkJavaScriptCommentStrippingFixtures();
 
 if (hooksConfig) {
   for (const violation of hooksConfigViolations(
@@ -1346,6 +1893,13 @@ check(
   !/\bAgent\s*\(\s*\{[\s\S]*?\bschema\s*:/.test(adversarySkill),
   `${adversaryPath} Claude Agent calls must not pass the unsupported schema field`,
 );
+check(
+  !adversarySkill.includes("No caveats"),
+  `${adversaryPath} must not instruct Claude agents to omit caveats`,
+);
+for (const violation of codexCapacityHelperViolations(adversarySkill)) {
+  errors.push(`${adversaryPath} must ${violation}`);
+}
 checkExplicitModelOverrides(adversaryPath, adversarySkill);
 for (const violation of controllerTaskNameViolations(adversarySkill, {
   counterName: "nextPlayerDispatchIndex",
@@ -1436,6 +1990,17 @@ check(
   !/\bAgent\s*\(\s*\{[\s\S]*?\bschema\s*:/.test(unlimitedPowerSkill),
   `${unlimitedPowerPath} Claude Agent calls must not pass the unsupported schema field`,
 );
+check(
+  unlimitedPowerSkill.includes("**Codex `dispatchWorker`:**\n\n```javascript"),
+  `${unlimitedPowerPath} must keep a blank line before the Codex dispatchWorker fence`,
+);
+check(
+  unlimitedPowerSkill.includes("**Claude `dispatchWorker`:**\n\n```javascript"),
+  `${unlimitedPowerPath} must keep a blank line before the Claude dispatchWorker fence`,
+);
+for (const violation of codexCapacityHelperViolations(unlimitedPowerSkill)) {
+  errors.push(`${unlimitedPowerPath} must ${violation}`);
+}
 checkExplicitModelOverrides(unlimitedPowerPath, unlimitedPowerSkill);
 for (const violation of controllerTaskNameViolations(unlimitedPowerSkill, {
   counterName: "nextWorkerDispatchIndex",

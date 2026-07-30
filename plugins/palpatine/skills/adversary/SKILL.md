@@ -151,7 +151,7 @@ TARGET is about to: [user's planned move]
 
 Assume competent and self-interested. What's their counter-move?
 Return only raw JSON with exactly these keys: counter, exploits, escalation, weakPoint.
-No Markdown fences. No caveats. Most likely play, stated cold.`
+No Markdown fences. Most likely play, stated cold.`
   });
   let response = validateJsonObject(rawResponse, ADVERSARY_SCHEMA);
   if (!response) {
@@ -185,10 +185,16 @@ function chooseUnusedRunComponent(agents, taskPrefix) {
   }
 }
 
+function agentConsumesCodexSlot(agent) {
+  const status = agent.agent_status;
+  if (["pending", "running", "working"].includes(status)) return true;
+  return status !== null &&
+    typeof status === "object" &&
+    !Object.prototype.hasOwnProperty.call(status, "completed");
+}
+
 function availableCodexWorkerSlots(agents) {
-  const activeAgentCount = agents.filter((agent) =>
-    ["pending", "running", "working"].includes(agent.agent_status)
-  ).length;
+  const activeAgentCount = agents.filter(agentConsumesCodexSlot).length;
   return Math.max(0, CODEX_TEAM_SLOT_LIMIT - activeAgentCount);
 }
 
@@ -359,7 +365,7 @@ For Claude Code, use the same capped `wave`. Each `Agent` call contains only `de
 
 The invocation explicitly supplies `situation` and `explicitlyRequestedModel`; `userRequestedModel` is assigned from that explicit field and remains `undefined` when the user named no model. The conditional model field therefore never guesses an override. Before dispatch, `list_agents` supplies every existing canonical task name. The controller selects the first unused `rN` component and combines it with the wave number and a run-wide monotonic dispatch index, producing collision-free names containing only lowercase letters, digits, and underscores. The player's human name stays in `message`.
 
-Codex's team limit is four slots including the controller. Each wave derives free capacity from non-completed `list_agents` entries. `wait_agent` accepts only `timeout_ms`; it signals a mailbox update, not a worker payload. The next `list_agents` snapshot exposes completed text as `agent_status.completed`, keyed by `agent_name`. Codex may also deliver a `FINAL_ANSWER` message directly into the controller conversation; treat its sender task name and payload identically. Each collector stops starting waits at its wall-clock deadline, interrupts every task still pending, and emits a player-keyed gap. Undispatched players and players beyond the cap also receive explicit gaps. Results retain `{ workerTask, player, response }`, so a missing response cannot shift attribution.
+Codex's team limit is four slots including the controller. Current active entries use string statuses such as `"running"`; completed entries use an object with a string `completed` payload. Each wave counts active strings and any non-completed object status, while completed objects consume no slot. `wait_agent` accepts only `timeout_ms`; it signals a mailbox update, not a worker payload. The next `list_agents` snapshot exposes completed text as `agent_status.completed`, keyed by `agent_name`. Codex may also deliver a `FINAL_ANSWER` message directly into the controller conversation; treat its sender task name and payload identically. Each collector stops starting waits at its wall-clock deadline, interrupts every task still pending, and emits a player-keyed gap. Undispatched players and players beyond the cap also receive explicit gaps. Results retain `{ workerTask, player, response }`, so a missing response cannot shift attribution.
 
 ### Synthesis
 

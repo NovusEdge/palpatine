@@ -51,10 +51,16 @@ function chooseUnusedRunComponent(agents, taskPrefix) {
   }
 }
 
+function agentConsumesCodexSlot(agent) {
+  const status = agent.agent_status;
+  if (["pending", "running", "working"].includes(status)) return true;
+  return status !== null &&
+    typeof status === "object" &&
+    !Object.prototype.hasOwnProperty.call(status, "completed");
+}
+
 function availableCodexWorkerSlots(agents) {
-  const activeAgentCount = agents.filter((agent) =>
-    ["pending", "running", "working"].includes(agent.agent_status)
-  ).length;
+  const activeAgentCount = agents.filter(agentConsumesCodexSlot).length;
   return Math.max(0, CODEX_TEAM_SLOT_LIMIT - activeAgentCount);
 }
 
@@ -145,6 +151,7 @@ const WORKER_SCHEMA = {
 `dispatchWorker(workerTaskName, task, acceptanceCheck, userRequestedModel)` and `collectWorkerResults(workers)` are the host-specific boundaries.
 
 **Codex `dispatchWorker`:**
+
 ```javascript
 function normalizeWorkerResponse(rawResponse) {
   let response;
@@ -264,11 +271,12 @@ async function collectCodexWorkerFinals(workerTasks) {
 
 Before dispatch, `list_agents` supplies every existing canonical task name. The controller selects the first unused `rN` component and combines it with the wave number and one run-wide monotonic dispatch index. Names remain unique across repeated invocations in the same Codex task and contain only lowercase letters, digits, and underscores; the human task name stays in `message`.
 
-Codex's team limit is four slots including the controller. Every wave derives free capacity from non-completed `list_agents` entries. Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update, not a worker payload. The next `list_agents` snapshot exposes completed text as `agent_status.completed`, keyed by `agent_name`. Codex may also deliver a `FINAL_ANSWER` message directly into the controller conversation; treat its sender task name and payload identically. Each collector stops starting waits at its wall-clock deadline, interrupts every task still pending, and creates a low-confidence `WORKER_SCHEMA` result for every missing or invalid worker. Input order is preserved when results return to synthesis.
+Codex's team limit is four slots including the controller. Current active entries use string statuses such as `"running"`; completed entries use an object with a string `completed` payload. Every wave counts active strings and any non-completed object status, while completed objects consume no slot. Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update, not a worker payload. The next `list_agents` snapshot exposes completed text as `agent_status.completed`, keyed by `agent_name`. Codex may also deliver a `FINAL_ANSWER` message directly into the controller conversation; treat its sender task name and payload identically. Each collector stops starting waits at its wall-clock deadline, interrupts every task still pending, and creates a low-confidence `WORKER_SCHEMA` result for every missing or invalid worker. Input order is preserved when results return to synthesis.
 
 Codex workers inherit the orchestrator model unless the user explicitly requests an override. Their prompt includes the acceptance check and states that leaf workers never spawn.
 
 **Claude `dispatchWorker`:**
+
 ```javascript
 async function dispatchClaudeWorker(task, acceptanceCheck) {
   let rawResponse = await Agent({
