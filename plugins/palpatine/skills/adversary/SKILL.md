@@ -86,7 +86,7 @@ const PLAYER_SCHEMA = {
 **Codex:**
 - Use `spawn_agent` with `fork_turns: "none"` and all player context in the prompt.
 - Ask for the exact keys `move`, `alliance`, `threat`, `price`, and `threatLevel`.
-- Use `wait_agent` for completion, then `followup_task` when a response needs correction. Leaf workers never spawn.
+- Collect each wave from one controller-owned mailbox loop keyed by the canonical task names returned from `spawn_agent`; use `followup_task` when a response needs correction. Leaf workers never spawn.
 - Inherit the orchestrator model. Forward `userRequestedModel` only when the user explicitly named a model; never infer an override.
 
 **Claude Code:**
@@ -146,18 +146,36 @@ SITUATION: [current state]
 
 Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
   });
+  return workerTask;
+}
 
-  await wait_agent({ timeout_ms: 60_000 });
-  let response = readDeliveredFinal(workerTask); // read the worker final from the mailbox event
-  if (!hasExactKeys(response, PLAYER_OUTPUT_KEYS)) {
-    await followup_task({
-      target: workerTask,
-      message: `Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
-    });
+async function collectCodexPlayerFinals(workerTasks) {
+  const pendingWorkerTasks = new Set(workerTasks);
+  const resultsByWorkerTask = new Map();
+  const correctionRequested = new Set();
+
+  while (pendingWorkerTasks.size > 0) {
     await wait_agent({ timeout_ms: 60_000 });
-    response = readDeliveredFinal(workerTask);
+    const deliveredFinals = readDeliveredFinals();
+
+    for (const [workerTask, response] of deliveredFinals) {
+      if (!pendingWorkerTasks.has(workerTask)) continue;
+      if (!hasExactKeys(response, PLAYER_OUTPUT_KEYS)) {
+        if (correctionRequested.has(workerTask)) {
+          throw new Error(`Worker ${workerTask} returned invalid keys after correction.`);
+        }
+        await followup_task({
+          target: workerTask,
+          message: `Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
+        });
+        correctionRequested.add(workerTask);
+        continue;
+      }
+      resultsByWorkerTask.set(workerTask, response);
+      pendingWorkerTasks.delete(workerTask);
+    }
   }
-  return response;
+  return resultsByWorkerTask;
 }
 
 while (remainingPlayers.length > 0) {
@@ -170,15 +188,17 @@ while (remainingPlayers.length > 0) {
     remainingPlayers.length
   );
   const wave = remainingPlayers.splice(0, waveWidth);
-  results.push(...await Promise.all(
+  const workerTasks = await Promise.all(
     wave.map((player) => dispatchCodexPlayer(player, userRequestedModel))
-  ));
+  );
+  const resultsByWorkerTask = await collectCodexPlayerFinals(workerTasks);
+  results.push(...workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask)));
 }
 ```
 
 For Claude Code, use the same capped `wave` and `PLAYER_SCHEMA` with `Agent`; `Promise.all` remains limited to the bounded, independent wave.
 
-`wait_agent` signals a mailbox update, not a worker payload. `readDeliveredFinal(workerTask)` denotes reading that worker's final message from the delivered mailbox event.
+`wait_agent` signals a mailbox update, not a worker payload. `readDeliveredFinals()` yields newly delivered finals keyed by canonical task name. The controller never waits inside concurrent player dispatches or rereads stale responses after an unrelated update.
 
 ### Synthesis
 

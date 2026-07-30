@@ -113,16 +113,154 @@ function checkStaticContract(relativePath, source, requirements) {
   }
 }
 
-function checkSourceOrder(relativePath, source, orderedMarkers, description) {
-  let previousIndex = -1;
-  for (const marker of orderedMarkers) {
-    const index = source.indexOf(marker);
-    if (index === -1 || index <= previousIndex) {
-      errors.push(`${relativePath} must ${description}`);
-      return;
+function extractFencedJavaScript(source, marker) {
+  return [...source.matchAll(/```javascript\s*\n([\s\S]*?)```/g)]
+    .map((match) => match[1])
+    .find((block) => block.includes(marker)) ?? null;
+}
+
+function findMatchingBrace(source, openingBraceIndex) {
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = openingBraceIndex; index < source.length; index += 1) {
+    const character = source[index];
+    const nextCharacter = source[index + 1];
+
+    if (lineComment) {
+      if (character === "\n") lineComment = false;
+      continue;
     }
-    previousIndex = index;
+    if (blockComment) {
+      if (character === "*" && nextCharacter === "/") {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === "/" && nextCharacter === "/") {
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+    if (character === "/" && nextCharacter === "*") {
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+    if (["\"", "'", "`"].includes(character)) {
+      quote = character;
+      continue;
+    }
+    if (character === "{") depth += 1;
+    if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
   }
+  return -1;
+}
+
+function getIfBlock(source, condition) {
+  const start = source.indexOf(`if (${condition})`);
+  if (start === -1) return null;
+  const openingBrace = source.indexOf("{", start);
+  if (openingBrace === -1) return null;
+  const closingBrace = findMatchingBrace(source, openingBrace);
+  if (closingBrace === -1) return null;
+  return {
+    start,
+    body: source.slice(openingBrace + 1, closingBrace),
+  };
+}
+
+function getFunctionBody(source, functionName) {
+  const start = source.indexOf(`async function ${functionName}(`);
+  if (start === -1) return null;
+  const openingBrace = source.indexOf("{", start);
+  if (openingBrace === -1) return null;
+  const closingBrace = findMatchingBrace(source, openingBrace);
+  return closingBrace === -1 ? null : source.slice(openingBrace + 1, closingBrace);
+}
+
+function unlimitedPowerLoopViolations(loopSource) {
+  const violations = [];
+  const emptyPlanGuard = getIfBlock(loopSource, "plan.length === 0");
+  const noCapacityGuard = getIfBlock(loopSource, "availableWorkerSlots <= 0");
+  const dispatchIndex = loopSource.indexOf("batch.map(task => dispatchWorker(");
+  const accountingIndex = loopSource.indexOf("dispatched += batch.length");
+
+  if (
+    !emptyPlanGuard ||
+    !emptyPlanGuard.body.includes("No runnable tasks were produced for the objective.") ||
+    !/return terminate\("stalled", gap\);/.test(emptyPlanGuard?.body ?? "")
+  ) {
+    violations.push("keep the empty-plan stalled return inside its guard");
+  }
+  if (
+    !noCapacityGuard ||
+    !/return terminate\(\s*"stalled",\s*"No worker capacity is available; retry when a worker slot opens\."\s*\);/.test(
+      noCapacityGuard?.body ?? "",
+    )
+  ) {
+    violations.push("keep the no-capacity stalled return inside its guard");
+  }
+  if (
+    dispatchIndex === -1 ||
+    accountingIndex === -1 ||
+    !emptyPlanGuard ||
+    !noCapacityGuard ||
+    emptyPlanGuard.start >= dispatchIndex ||
+    emptyPlanGuard.start >= accountingIndex ||
+    noCapacityGuard.start >= dispatchIndex ||
+    noCapacityGuard.start >= accountingIndex
+  ) {
+    violations.push("check both guards before dispatching or consuming dispatch budget");
+  }
+
+  return violations;
+}
+
+function checkUnlimitedPowerLoopFixtures(loopSource) {
+  const movedEmptyPlanReturn = loopSource
+    .replace('return terminate("stalled", gap);', "")
+    .replace(
+      "\n\n  const remainingDispatchBudget",
+      "\n\n  return terminate(\"stalled\", gap);\n\n  const remainingDispatchBudget",
+    );
+  check(
+    unlimitedPowerLoopViolations(movedEmptyPlanReturn).includes(
+      "keep the empty-plan stalled return inside its guard",
+    ),
+    "unlimited-power structural checker must reject an empty-plan return moved outside its guard",
+  );
+
+  const noCapacityGuard = getIfBlock(loopSource, "availableWorkerSlots <= 0");
+  const noCapacityReturn = noCapacityGuard?.body.match(
+    /return terminate\(\s*"stalled",\s*"No worker capacity is available; retry when a worker slot opens\."\s*\);/,
+  )?.[0];
+  const emptiedNoCapacityGuard = noCapacityReturn
+    ? loopSource.replace(noCapacityReturn, "")
+    : loopSource;
+  check(
+    unlimitedPowerLoopViolations(emptiedNoCapacityGuard).includes(
+      "keep the no-capacity stalled return inside its guard",
+    ),
+    "unlimited-power structural checker must reject an emptied no-capacity guard",
+  );
 }
 
 function checkExplicitModelOverrides(relativePath, source) {
@@ -243,7 +381,23 @@ checkStaticContract(adversaryPath, adversarySkill, [
   ["target followup_task with the returned worker task name", /target:\s*workerTask/],
   [
     "wait for a corrected Codex worker response after followup_task",
-    /await followup_task\([\s\S]*?\);\s*await wait_agent\(\s*\{\s*timeout_ms\s*:[\s\S]*?response\s*=\s*readDeliveredFinal\(workerTask\)/,
+    /await followup_task\([\s\S]*?\);\s*correctionRequested\.add\(workerTask\);/,
+  ],
+  [
+    "fail explicitly when a corrected Codex player response is still invalid",
+    /if \(correctionRequested\.has\(workerTask\)\) \{\s*throw new Error\(/,
+  ],
+  [
+    "collect Codex player finals in one controller mailbox loop",
+    /async function collectCodexPlayerFinals\(workerTasks\)/,
+  ],
+  [
+    "key Codex player collection by returned canonical task names",
+    /const pendingWorkerTasks = new Set\(workerTasks\);/,
+  ],
+  [
+    "consume newly delivered player finals keyed by canonical task name",
+    /const deliveredFinals = readDeliveredFinals\(\);/,
   ],
   ["cap player models at five", /MAX_PLAYER_MODELS\s*=\s*5/],
   [
@@ -256,6 +410,19 @@ check(
   `${adversaryPath} must not pass an unsupported target parameter to wait_agent`,
 );
 checkExplicitModelOverrides(adversaryPath, adversarySkill);
+const adversaryDispatchBody = getFunctionBody(adversarySkill, "dispatchCodexPlayer");
+const adversaryCollectorBody = getFunctionBody(adversarySkill, "collectCodexPlayerFinals");
+check(
+  !adversaryDispatchBody?.includes("wait_agent"),
+  `${adversaryPath} must not wait per player while a wave dispatches`,
+);
+check(
+  adversaryCollectorBody?.includes("while (pendingWorkerTasks.size > 0)") &&
+    adversaryCollectorBody.includes("await wait_agent({ timeout_ms: 60_000 })") &&
+    adversaryCollectorBody.includes("for (const [workerTask, response] of deliveredFinals)") &&
+    !adversaryCollectorBody.includes("readDeliveredFinal("),
+  `${adversaryPath} must wait from the controller loop until every player final arrives`,
+);
 
 const unlimitedPowerPath = "plugins/palpatine/skills/unlimited-power/SKILL.md";
 const unlimitedPowerSkill = readText(unlimitedPowerPath);
@@ -280,31 +447,40 @@ checkStaticContract(unlimitedPowerPath, unlimitedPowerSkill, [
     /\bwait_agent\s*\(\s*\{\s*timeout_ms\s*:/,
   ],
   ["explain that wait_agent returns a mailbox update rather than the worker payload", /wait_agent` signals a mailbox update/],
-  [
-    "terminate stalled with an explicit capacity gap when no worker slot is available",
-    /if \(availableWorkerSlots <= 0\) \{[\s\S]*?return terminate\(\s*"stalled",\s*"No worker capacity is available; retry when a worker slot opens\."\s*\);/,
-  ],
-  [
-    "terminate stalled with an explicit plan gap when decomposition produces no runnable tasks",
-    /if \(plan\.length === 0\) \{[\s\S]*?"No runnable tasks were produced for the objective\."[\s\S]*?return terminate\("stalled", gap\);/,
-  ],
+  ["pass an explicit user-requested model through the dispatch loop", /dispatchWorker\(task, done, userRequestedModel\)/],
+  ["collect Codex worker finals in one controller mailbox loop", /async function collectCodexWorkerFinals\(workerTasks\)/],
+  ["key Codex worker collection by returned canonical task names", /const pendingWorkerTasks = new Set\(workerTasks\);/],
+  ["consume newly delivered worker finals keyed by canonical task name", /const deliveredFinals = readDeliveredFinals\(\);/],
 ]);
-checkSourceOrder(
-  unlimitedPowerPath,
-  unlimitedPowerSkill,
-  [
-    "if (plan.length === 0)",
-    "if (availableWorkerSlots <= 0)",
-    "dispatchWorker(task, done)",
-    "dispatched += batch.length",
-  ],
-  "check empty plans and worker capacity before dispatching or consuming dispatch budget",
+const unlimitedPowerLoop = extractFencedJavaScript(unlimitedPowerSkill, "defineAcceptanceCheck");
+check(
+  unlimitedPowerLoop !== null,
+  `${unlimitedPowerPath} must document the unlimited-power orchestration loop`,
 );
+if (unlimitedPowerLoop) {
+  for (const violation of unlimitedPowerLoopViolations(unlimitedPowerLoop)) {
+    errors.push(`${unlimitedPowerPath} must ${violation}`);
+  }
+  checkUnlimitedPowerLoopFixtures(unlimitedPowerLoop);
+}
 check(
   !/\bwait_agent\s*\(\s*\{\s*target\s*:/.test(unlimitedPowerSkill),
   `${unlimitedPowerPath} must not pass an unsupported target parameter to wait_agent`,
 );
 checkExplicitModelOverrides(unlimitedPowerPath, unlimitedPowerSkill);
+const unlimitedPowerDispatchBody = getFunctionBody(unlimitedPowerSkill, "dispatchWorker");
+const unlimitedPowerCollectorBody = getFunctionBody(unlimitedPowerSkill, "collectCodexWorkerFinals");
+check(
+  !unlimitedPowerDispatchBody?.includes("wait_agent"),
+  `${unlimitedPowerPath} must not wait per worker while a wave dispatches`,
+);
+check(
+  unlimitedPowerCollectorBody?.includes("while (pendingWorkerTasks.size > 0)") &&
+    unlimitedPowerCollectorBody.includes("await wait_agent({ timeout_ms: 60_000 })") &&
+    unlimitedPowerCollectorBody.includes("for (const [workerTask, response] of deliveredFinals)") &&
+    !unlimitedPowerCollectorBody.includes("readDeliveredFinal("),
+  `${unlimitedPowerPath} must wait from the controller loop until every worker final arrives`,
+);
 
 const palpatinePath = "plugins/palpatine/skills/palpatine/SKILL.md";
 const palpatineSkill = readText(palpatinePath);

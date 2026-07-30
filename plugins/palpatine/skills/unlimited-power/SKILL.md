@@ -42,6 +42,7 @@ Decompose → dispatch a bounded wave → verify against the done-condition → 
 const done = defineAcceptanceCheck(objective);
 if (!done) return terminate("no-stop-condition", "No verifiable done-condition.");
 
+const userRequestedModel = getExplicitUserRequestedModel(objective); // undefined unless the user named a model
 let plan = decompose(objective);   // → dependency-LAYERED: a wave holds only independent tasks; dependents land in later waves
 let dispatched = 0, lastGap = null;
 
@@ -73,9 +74,10 @@ for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
 
   // A wave is independent-only, so Promise.all is safe. Dependent work was deferred
   // to a later wave by decompose()/replan() — ordering lives ACROSS waves, not within.
-  const results = await Promise.all(
-    batch.map(task => dispatchWorker(task, done))
+  const workers = await Promise.all(
+    batch.map(task => dispatchWorker(task, done, userRequestedModel))
   );
+  const results = await collectWorkerResults(workers);
   dispatched += batch.length;
 
   if (done.passes(results)) return terminate("done", results);
@@ -108,7 +110,7 @@ const WORKER_SCHEMA = {
 
 ## Host Adapters
 
-`dispatchWorker(task, acceptanceCheck)` is the only host-specific boundary.
+`dispatchWorker(task, acceptanceCheck, userRequestedModel)` and `collectWorkerResults(workers)` are the host-specific boundaries.
 
 **Codex `dispatchWorker`:**
 ```javascript
@@ -123,20 +125,40 @@ Acceptance check: ${acceptanceCheck}
 Leaf workers never spawn subagents.
 Return the exact headings: result, done, gap, evidence, confidence.`
   });
+  return workerTask;
+}
 
-  await wait_agent({ timeout_ms: 60_000 });
-  const response = readDeliveredFinal(workerTask); // read the worker final from the mailbox event
-  return normalizeWorkerResponse(response);
+async function collectWorkerResults(workerTasks) {
+  return collectCodexWorkerFinals(workerTasks);
+}
+
+async function collectCodexWorkerFinals(workerTasks) {
+  const pendingWorkerTasks = new Set(workerTasks);
+  const resultsByWorkerTask = new Map();
+
+  while (pendingWorkerTasks.size > 0) {
+    await wait_agent({ timeout_ms: 60_000 });
+    const deliveredFinals = readDeliveredFinals();
+
+    for (const [workerTask, response] of deliveredFinals) {
+      if (!pendingWorkerTasks.has(workerTask)) continue;
+      resultsByWorkerTask.set(workerTask, normalizeWorkerResponse(response));
+      pendingWorkerTasks.delete(workerTask);
+    }
+  }
+  return workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask));
 }
 ```
 
-Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update; it does not return the worker payload. Read the delivered final for `workerTask`, which requires the exact headings `result`, `done`, `gap`, `evidence`, and `confidence`, then normalize it to `WORKER_SCHEMA`.
+Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update; it does not return a worker payload. `readDeliveredFinals()` yields newly delivered finals keyed by canonical task name; one controller loop normalizes them against `WORKER_SCHEMA`.
 
 Codex workers inherit the orchestrator model unless the user explicitly requests an override. Their prompt includes the acceptance check and states that leaf workers never spawn.
 
 **Claude `dispatchWorker`:**
 1. Call `Agent` with `WORKER_SCHEMA`.
 2. Return the validated structured result.
+
+**Claude `collectWorkerResults`:** Return the already validated worker results.
 
 ## Orchestration Rules
 
