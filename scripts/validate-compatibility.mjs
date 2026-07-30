@@ -196,11 +196,176 @@ function getFunctionBody(source, functionName) {
   return closingBrace === -1 ? null : source.slice(openingBrace + 1, closingBrace);
 }
 
+function controllerTaskNameViolations(source, {
+  counterName,
+  dispatchFunction,
+  humanNameExpression,
+  loopMarker,
+  prefix,
+  taskNameVariable,
+  waveName,
+}) {
+  const violations = [];
+  const counterInitialization = `let ${counterName} = 0;`;
+  const counterInitializationIndex = source.indexOf(counterInitialization);
+  const loopIndex = source.indexOf(loopMarker);
+  const assignmentPattern = new RegExp(
+    `const\\s+${taskNameVariable}\\s*=\\s*\`([^\`]*)\`;`,
+  );
+  const assignment = source.match(assignmentPattern);
+  const taskNameTemplate = assignment?.[1] ?? "";
+  const renderedTemplate = taskNameTemplate
+    .split(`\${${waveName}}`).join("0")
+    .split(`\${${counterName}++}`).join("0");
+
+  if (
+    !taskNameTemplate ||
+    renderedTemplate.includes("${") ||
+    !/^[a-z0-9_]+$/.test(renderedTemplate) ||
+    !taskNameTemplate.startsWith(`${prefix}_w\${${waveName}}_`)
+  ) {
+    violations.push("generate controller-owned task names that match ^[a-z0-9_]+$");
+  }
+  if (
+    counterInitializationIndex === -1 ||
+    loopIndex === -1 ||
+    counterInitializationIndex >= loopIndex ||
+    !taskNameTemplate.includes(`\${${counterName}++}`)
+  ) {
+    violations.push("use one monotonic dispatch index across all waves");
+  }
+
+  const dispatchBody = getFunctionBody(source, dispatchFunction);
+  if (
+    !source.includes(`return ${dispatchFunction}(${taskNameVariable},`) ||
+    !dispatchBody?.includes(`task_name: ${taskNameVariable}`)
+  ) {
+    violations.push("pass the controller-owned task name to spawn_agent");
+  }
+  if (!dispatchBody?.includes(humanNameExpression)) {
+    violations.push("keep the human task name in the worker message");
+  }
+
+  return violations;
+}
+
+function checkControllerTaskNameFixtures() {
+  const validFixture = [
+    "let nextWorkerDispatchIndex = 0;",
+    "for (let wave = 0; wave < 5; wave++) {",
+    "  const workerTaskName = `worker_w${wave}_${nextWorkerDispatchIndex++}`;",
+    "  return dispatchWorker(workerTaskName, task);",
+    "}",
+    "async function dispatchWorker(workerTaskName, task) {",
+    "  return spawn_agent({",
+    "    task_name: workerTaskName,",
+    "    message: `Task: ${task.name}`,",
+    "  });",
+    "}",
+  ].join("\n");
+  const fixtureOptions = {
+    counterName: "nextWorkerDispatchIndex",
+    dispatchFunction: "dispatchWorker",
+    humanNameExpression: "${task.name}",
+    loopMarker: "for (let wave = 0;",
+    prefix: "worker",
+    taskNameVariable: "workerTaskName",
+    waveName: "wave",
+  };
+
+  const invalidNameFixture = validFixture.replace(
+    "`worker_w${wave}_${nextWorkerDispatchIndex++}`",
+    "`worker-${task.name}`",
+  );
+  check(
+    controllerTaskNameViolations(invalidNameFixture, fixtureOptions).includes(
+      "generate controller-owned task names that match ^[a-z0-9_]+$",
+    ),
+    "Codex task-name checker must reject invalid task names",
+  );
+
+  const reusedNameFixture = validFixture.replace(
+    "${nextWorkerDispatchIndex++}",
+    "${wave}",
+  );
+  check(
+    controllerTaskNameViolations(reusedNameFixture, fixtureOptions).includes(
+      "use one monotonic dispatch index across all waves",
+    ),
+    "Codex task-name checker must reject reused task names",
+  );
+}
+
+function hooksConfigViolations(hooksConfig, targetExists) {
+  const violations = [];
+  const sessionStart = hooksConfig?.hooks?.SessionStart;
+
+  if (!Array.isArray(sessionStart) || sessionStart.length === 0) {
+    return ["define hooks.SessionStart as a non-empty array"];
+  }
+
+  for (const sessionHook of sessionStart) {
+    if (!Array.isArray(sessionHook?.hooks) || sessionHook.hooks.length === 0) {
+      violations.push("define each SessionStart entry with a non-empty hooks array");
+      continue;
+    }
+
+    for (const commandHook of sessionHook.hooks) {
+      if (
+        commandHook?.type !== "command" ||
+        typeof commandHook.command !== "string" ||
+        typeof commandHook.timeout !== "number" ||
+        commandHook.timeout <= 0
+      ) {
+        violations.push("define each SessionStart hook as a timed command");
+        continue;
+      }
+
+      const commandMatch = commandHook.command.match(
+        /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/([^"]+)"$/,
+      );
+      if (!commandMatch || commandMatch[1] !== "activate.js") {
+        violations.push("invoke the packaged hooks/activate.js target");
+        continue;
+      }
+      if (!targetExists(commandMatch[1])) {
+        violations.push("reference an existing activation target");
+      }
+    }
+  }
+
+  return violations;
+}
+
+function checkHooksConfigFixture() {
+  const missingTargetFixture = {
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [
+            {
+              type: "command",
+              command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/missing.js"',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+    },
+  };
+  check(
+    hooksConfigViolations(missingTargetFixture, () => false).includes(
+      "invoke the packaged hooks/activate.js target",
+    ),
+    "hooks structural checker must reject an invalid activation target",
+  );
+}
+
 function unlimitedPowerLoopViolations(loopSource) {
   const violations = [];
   const emptyPlanGuard = getIfBlock(loopSource, "plan.length === 0");
   const noCapacityGuard = getIfBlock(loopSource, "availableWorkerSlots <= 0");
-  const dispatchIndex = loopSource.indexOf("batch.map(task => dispatchWorker(");
+  const dispatchIndex = loopSource.indexOf("batch.map(task => {");
   const accountingIndex = loopSource.indexOf("dispatched += batch.length");
 
   if (
@@ -278,9 +443,21 @@ const codexMarketplace = readJson(".agents/plugins/marketplace.json");
 const lawData = readJson("plugins/palpatine/skills/laws/references/law_index.json");
 const warData = readJson("plugins/palpatine/skills/war/references/war_index.json");
 const seductionData = readJson("plugins/palpatine/skills/seduce/references/seduction_index.json");
+const hooksConfig = readJson("plugins/palpatine/hooks/hooks.json");
 
 checkManifest(claudeManifest, "Claude");
 checkManifest(codexManifest, "Codex");
+checkControllerTaskNameFixtures();
+checkHooksConfigFixture();
+
+if (hooksConfig) {
+  for (const violation of hooksConfigViolations(
+    hooksConfig,
+    (target) => fs.existsSync(path.join(pluginRoot, "hooks", target)),
+  )) {
+    errors.push(`plugins/palpatine/hooks/hooks.json must ${violation}`);
+  }
+}
 
 if (claudeManifest) {
   check(claudeManifest.hooks === "./hooks/hooks.json", "Claude manifest hooks must be ./hooks/hooks.json");
@@ -410,6 +587,17 @@ check(
   `${adversaryPath} must not pass an unsupported target parameter to wait_agent`,
 );
 checkExplicitModelOverrides(adversaryPath, adversarySkill);
+for (const violation of controllerTaskNameViolations(adversarySkill, {
+  counterName: "nextPlayerDispatchIndex",
+  dispatchFunction: "dispatchCodexPlayer",
+  humanNameExpression: "${player.name}",
+  loopMarker: "while (remainingPlayers.length > 0)",
+  prefix: "player",
+  taskNameVariable: "workerTaskName",
+  waveName: "waveIndex",
+})) {
+  errors.push(`${adversaryPath} must ${violation}`);
+}
 const adversaryDispatchBody = getFunctionBody(adversarySkill, "dispatchCodexPlayer");
 const adversaryCollectorBody = getFunctionBody(adversarySkill, "collectCodexPlayerFinals");
 check(
@@ -447,7 +635,7 @@ checkStaticContract(unlimitedPowerPath, unlimitedPowerSkill, [
     /\bwait_agent\s*\(\s*\{\s*timeout_ms\s*:/,
   ],
   ["explain that wait_agent returns a mailbox update rather than the worker payload", /wait_agent` signals a mailbox update/],
-  ["pass an explicit user-requested model through the dispatch loop", /dispatchWorker\(task, done, userRequestedModel\)/],
+  ["pass an explicit user-requested model through the dispatch loop", /dispatchWorker\(workerTaskName, task, done, userRequestedModel\)/],
   ["collect Codex worker finals in one controller mailbox loop", /async function collectCodexWorkerFinals\(workerTasks\)/],
   ["key Codex worker collection by returned canonical task names", /const pendingWorkerTasks = new Set\(workerTasks\);/],
   ["consume newly delivered worker finals keyed by canonical task name", /const deliveredFinals = readDeliveredFinals\(\);/],
@@ -468,6 +656,17 @@ check(
   `${unlimitedPowerPath} must not pass an unsupported target parameter to wait_agent`,
 );
 checkExplicitModelOverrides(unlimitedPowerPath, unlimitedPowerSkill);
+for (const violation of controllerTaskNameViolations(unlimitedPowerSkill, {
+  counterName: "nextWorkerDispatchIndex",
+  dispatchFunction: "dispatchWorker",
+  humanNameExpression: "${task.name}",
+  loopMarker: "for (let wave = 0;",
+  prefix: "worker",
+  taskNameVariable: "workerTaskName",
+  waveName: "wave",
+})) {
+  errors.push(`${unlimitedPowerPath} must ${violation}`);
+}
 const unlimitedPowerDispatchBody = getFunctionBody(unlimitedPowerSkill, "dispatchWorker");
 const unlimitedPowerCollectorBody = getFunctionBody(unlimitedPowerSkill, "collectCodexWorkerFinals");
 check(
@@ -493,12 +692,39 @@ checkStaticContract(palpatinePath, palpatineSkill, [
     "frame legal, consent, retaliation, and material-harm risks contextually",
     /legal, consent, retaliation, or material harm/i,
   ],
+  [
+    "create the shared always-on state directory before the POSIX file",
+    /mkdir -p ~\/\.claude && touch ~\/\.claude\/palpatine-enabled/,
+  ],
+  [
+    "make the POSIX always-on removal idempotent",
+    /rm -f ~\/\.claude\/palpatine-enabled/,
+  ],
+  [
+    "create the shared always-on state directory and file in PowerShell",
+    /New-Item -ItemType Directory -Force[\s\S]*?New-Item -ItemType File -Force/,
+  ],
+  [
+    "make the PowerShell always-on removal idempotent",
+    /Remove-Item -Force -ErrorAction SilentlyContinue/,
+  ],
 ]);
 
 const readme = readText("README.md");
 check(
   !readme.includes("`/palpatine` takes"),
   "README overview must not imply an unnamespaced /palpatine invocation",
+);
+check(
+  readme.includes("Node.js must be installed and available as `node` on `PATH`") &&
+    readme.includes("node --version"),
+  "README must declare and show how to validate the Node.js hook prerequisite",
+);
+const readmeBashBlocks = [...readme.matchAll(/```bash\s*\n([\s\S]*?)```/g)]
+  .map((match) => match[1]);
+check(
+  readmeBashBlocks.every((block) => !block.includes("/plugin ")),
+  "README must not put Claude Code in-app slash commands in a bash block",
 );
 for (const command of [
   "/palpatine:palpatine on",
@@ -508,6 +734,26 @@ for (const command of [
 ]) {
   check(readme.includes(command), `README must document ${command}`);
 }
+
+const contributing = readText("CONTRIBUTING.md");
+const developerModeIndex = contributing.indexOf("Developer Mode");
+const globalSymlinkConfigIndex = contributing.indexOf(
+  "git config --global core.symlinks true",
+);
+const cloneIndex = contributing.indexOf("git clone");
+check(
+  developerModeIndex !== -1 &&
+    globalSymlinkConfigIndex !== -1 &&
+    cloneIndex !== -1 &&
+    developerModeIndex < cloneIndex &&
+    globalSymlinkConfigIndex < cloneIndex,
+  "CONTRIBUTING must document Windows true-symlink prerequisites before cloning",
+);
+check(
+  contributing.includes("git reset --hard HEAD") &&
+    /commit or stash/i.test(contributing),
+  "CONTRIBUTING must document safe existing-clone symlink recovery",
+);
 
 const activationHook = readText("plugins/palpatine/hooks/activate.js");
 for (const command of [

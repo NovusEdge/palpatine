@@ -96,8 +96,14 @@ Match situation to book. Often blend. Output: actions only.
 When enabled, append brief `**Power dynamics:**` to interpersonal/strategic interactions. Skip purely technical tasks.
 
 **Toggle:**
-- `/palpatine:palpatine on` → `touch ~/.claude/palpatine-enabled` → "Strategic lens enabled."
-- `/palpatine:palpatine off` → `rm -f ~/.claude/palpatine-enabled` → "Strategic lens disabled."
+
+POSIX shell:
+- `/palpatine:palpatine on` or `$palpatine:palpatine on` → `mkdir -p ~/.claude && touch ~/.claude/palpatine-enabled` → "Strategic lens enabled."
+- `/palpatine:palpatine off` or `$palpatine:palpatine off` → `rm -f ~/.claude/palpatine-enabled` → "Strategic lens disabled."
+
+PowerShell:
+- `/palpatine:palpatine on` or `$palpatine:palpatine on` → `New-Item -ItemType Directory -Force -Path (Join-Path $HOME ".claude") | Out-Null; New-Item -ItemType File -Force -Path (Join-Path $HOME ".claude/palpatine-enabled") | Out-Null` → "Strategic lens enabled."
+- `/palpatine:palpatine off` or `$palpatine:palpatine off` → `Remove-Item -Force -ErrorAction SilentlyContinue -Path (Join-Path $HOME ".claude/palpatine-enabled")` → "Strategic lens disabled."
 
 The change applies on the next session start. Both Claude Code and Codex discover
 hooks/hooks.json; Codex asks the user to trust a new or changed command hook before it runs.

@@ -18,6 +18,18 @@ So, you wish to join the Dark Side? Excellent.
 
 ## How to Contribute
 
+### Windows checkout prerequisite
+
+This repository tracks true symlinks. Before cloning on Windows:
+
+1. Enable **Developer Mode** in Windows Settings under **System > For developers**.
+2. Run `git config --global core.symlinks true`.
+3. Clone your fork with `git clone YOUR_FORK_URL`.
+
+For an existing clone, commit or stash local changes, run `git config core.symlinks true`, then run `git reset --hard HEAD` to recreate tracked links. The reset discards uncommitted changes.
+
+### Contribution flow
+
 1. Fork the repository (seize control of your own copy)
 2. Create a branch (`git checkout -b feature/order-66`)
 3. Commit your changes (`git commit -m "Execute contingency protocol"`)

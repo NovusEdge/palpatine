@@ -122,9 +122,9 @@ Dispatch only independent players. At most five player models run per invocation
 
 ```javascript
 const players = [
-  { taskName: "player_ceo", name: "CEO", goals: "...", leverage: "..." },
-  { taskName: "player_hr_director", name: "HR Director", goals: "...", leverage: "..." },
-  { taskName: "player_skip_level", name: "Skip-level", goals: "...", leverage: "..." }
+  { name: "CEO", goals: "...", leverage: "..." },
+  { name: "HR Director", goals: "...", leverage: "..." },
+  { name: "Skip-level", goals: "...", leverage: "..." }
 ];
 
 const PLAYER_OUTPUT_KEYS = ["move", "alliance", "threat", "price", "threatLevel"];
@@ -132,9 +132,9 @@ const MAX_PLAYER_MODELS = 5;
 const remainingPlayers = players.slice(0, MAX_PLAYER_MODELS);
 const results = [];
 
-async function dispatchCodexPlayer(player, userRequestedModel) {
+async function dispatchCodexPlayer(workerTaskName, player, userRequestedModel) {
   const { task_name: workerTask } = await spawn_agent({
-    task_name: player.taskName,
+    task_name: workerTaskName,
     fork_turns: "none",
     ...(userRequestedModel ? { model: userRequestedModel } : {}),
     message: `Model ${player.name} as a self-interested actor.
@@ -178,6 +178,8 @@ async function collectCodexPlayerFinals(workerTasks) {
   return resultsByWorkerTask;
 }
 
+let nextPlayerDispatchIndex = 0;
+let waveIndex = 0;
 while (remainingPlayers.length > 0) {
   const availableWorkerSlots = getAvailableWorkerSlots();
   if (availableWorkerSlots <= 0) break;
@@ -189,16 +191,20 @@ while (remainingPlayers.length > 0) {
   );
   const wave = remainingPlayers.splice(0, waveWidth);
   const workerTasks = await Promise.all(
-    wave.map((player) => dispatchCodexPlayer(player, userRequestedModel))
+    wave.map((player) => {
+      const workerTaskName = `player_w${waveIndex}_${nextPlayerDispatchIndex++}`;
+      return dispatchCodexPlayer(workerTaskName, player, userRequestedModel);
+    })
   );
   const resultsByWorkerTask = await collectCodexPlayerFinals(workerTasks);
   results.push(...workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask)));
+  waveIndex += 1;
 }
 ```
 
 For Claude Code, use the same capped `wave` and `PLAYER_SCHEMA` with `Agent`; `Promise.all` remains limited to the bounded, independent wave.
 
-`wait_agent` signals a mailbox update, not a worker payload. `readDeliveredFinals()` yields newly delivered finals keyed by canonical task name. The controller never waits inside concurrent player dispatches or rereads stale responses after an unrelated update.
+The controller owns Codex task names: each combines the wave number with one run-wide monotonic dispatch index, so it is unique and contains only lowercase letters, digits, and underscores. The player's human name stays in `message`. `wait_agent` signals a mailbox update, not a worker payload. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`. The controller never waits inside concurrent player dispatches or rereads stale responses after an unrelated update.
 
 ### Synthesis
 

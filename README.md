@@ -45,14 +45,28 @@ $palpatine:palpatine my boss keeps taking credit for my work in meetings
 
 ## Installation
 
+### Codex (shell)
+
 ```bash
-# Codex
 codex plugin marketplace add NovusEdge/palpatine
 codex plugin add palpatine@palpatine
+```
 
-# Claude Code
+### Claude Code (in-app)
+
+Run these slash commands inside Claude Code:
+
+```text
 /plugin marketplace add NovusEdge/palpatine
 /plugin install palpatine@palpatine
+```
+
+### Hook prerequisite
+
+Always-on mode on either host runs the packaged JavaScript hook. Node.js must be installed and available as `node` on `PATH`. Validate the runtime in a shell or PowerShell before enabling the mode:
+
+```text
+node --version
 ```
 
 Invoke skills with `/palpatine:<skill>` in Claude Code or `$palpatine:<skill>` in Codex.

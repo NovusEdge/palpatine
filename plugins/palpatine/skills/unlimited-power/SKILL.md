@@ -45,6 +45,7 @@ if (!done) return terminate("no-stop-condition", "No verifiable done-condition."
 const userRequestedModel = getExplicitUserRequestedModel(objective); // undefined unless the user named a model
 let plan = decompose(objective);   // → dependency-LAYERED: a wave holds only independent tasks; dependents land in later waves
 let dispatched = 0, lastGap = null;
+let nextWorkerDispatchIndex = 0;
 
 for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
   if (plan.length === 0) {
@@ -75,7 +76,10 @@ for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
   // A wave is independent-only, so Promise.all is safe. Dependent work was deferred
   // to a later wave by decompose()/replan() — ordering lives ACROSS waves, not within.
   const workers = await Promise.all(
-    batch.map(task => dispatchWorker(task, done, userRequestedModel))
+    batch.map(task => {
+      const workerTaskName = `worker_w${wave}_${nextWorkerDispatchIndex++}`;
+      return dispatchWorker(workerTaskName, task, done, userRequestedModel);
+    })
   );
   const results = await collectWorkerResults(workers);
   dispatched += batch.length;
@@ -110,16 +114,18 @@ const WORKER_SCHEMA = {
 
 ## Host Adapters
 
-`dispatchWorker(task, acceptanceCheck, userRequestedModel)` and `collectWorkerResults(workers)` are the host-specific boundaries.
+`dispatchWorker(workerTaskName, task, acceptanceCheck, userRequestedModel)` and `collectWorkerResults(workers)` are the host-specific boundaries.
 
 **Codex `dispatchWorker`:**
 ```javascript
-async function dispatchWorker(task, acceptanceCheck, userRequestedModel) {
+async function dispatchWorker(workerTaskName, task, acceptanceCheck, userRequestedModel) {
   const { task_name: workerTask } = await spawn_agent({
-    task_name: task.name,
+    task_name: workerTaskName,
     fork_turns: "none",
     ...(userRequestedModel ? { model: userRequestedModel } : {}),
-    message: `${task.prompt}
+    message: `Task: ${task.name}
+
+${task.prompt}
 
 Acceptance check: ${acceptanceCheck}
 Leaf workers never spawn subagents.
@@ -150,7 +156,7 @@ async function collectCodexWorkerFinals(workerTasks) {
 }
 ```
 
-Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update; it does not return a worker payload. `readDeliveredFinals()` yields newly delivered finals keyed by canonical task name; one controller loop normalizes them against `WORKER_SCHEMA`.
+The controller generates each `task_name` from the wave number and one run-wide monotonic dispatch index. This keeps names unique and within Codex's lowercase-letter, digit, and underscore schema; the human task name stays in `message`. Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update; it does not return a worker payload. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`; one controller loop normalizes them against `WORKER_SCHEMA`.
 
 Codex workers inherit the orchestrator model unless the user explicitly requests an override. Their prompt includes the acceptance check and states that leaf workers never spawn.
 
