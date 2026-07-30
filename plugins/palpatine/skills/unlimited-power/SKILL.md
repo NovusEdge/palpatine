@@ -138,12 +138,20 @@ async function collectWorkerResults(workerTasks) {
   return collectCodexWorkerFinals(workerTasks);
 }
 
+const COLLECTION_TIMEOUT_MS = 120_000;
+
 async function collectCodexWorkerFinals(workerTasks) {
   const pendingWorkerTasks = new Set(workerTasks);
   const resultsByWorkerTask = new Map();
+  const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;
+  const COLLECTION_TIMEOUT_DESCRIPTION = "120 seconds";
 
-  while (pendingWorkerTasks.size > 0) {
-    await wait_agent({ timeout_ms: 60_000 });
+  while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {
+    const remainingMs = collectionDeadline - Date.now();
+    if (remainingMs <= 0) break;
+    // Codex accepts a timeout_ms of at least 10 seconds, so the final wait can overshoot by at most that amount.
+    const waitMs = Math.max(10_000, Math.min(60_000, remainingMs));
+    await wait_agent({ timeout_ms: waitMs });
     const deliveredFinals = readDeliveredFinals();
 
     for (const [workerTask, response] of deliveredFinals) {
@@ -152,11 +160,20 @@ async function collectCodexWorkerFinals(workerTasks) {
       pendingWorkerTasks.delete(workerTask);
     }
   }
+  for (const workerTask of pendingWorkerTasks) {
+    resultsByWorkerTask.set(workerTask, {
+      result: "No final result returned.",
+      done: false,
+      gap: `Worker ${workerTask} did not return before the ${COLLECTION_TIMEOUT_DESCRIPTION} collection deadline.`,
+      evidence: `No final was delivered for canonical worker task ${workerTask} before the ${COLLECTION_TIMEOUT_DESCRIPTION} collection deadline.`,
+      confidence: "low",
+    });
+  }
   return workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask));
 }
 ```
 
-The controller generates each `task_name` from the wave number and one run-wide monotonic dispatch index. This keeps names unique and within Codex's lowercase-letter, digit, and underscore schema; the human task name stays in `message`. Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update; it does not return a worker payload. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`; one controller loop normalizes them against `WORKER_SCHEMA`.
+The controller generates each `task_name` from the wave number and one run-wide monotonic dispatch index. This keeps names unique and within Codex's lowercase-letter, digit, and underscore schema; the human task name stays in `message`. Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update, not a worker payload. It accepts only its optional `timeout_ms` and can return without a worker final. Each collector stops starting waits at its wall-clock deadline; Codex's 10-second minimum timeout bounds a final overshoot. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`; one controller loop normalizes delivered finals against `WORKER_SCHEMA` and creates a low-confidence `WORKER_SCHEMA` result for every canonical worker that missed the deadline. Input order is preserved when results return to synthesis.
 
 Codex workers inherit the orchestrator model unless the user explicitly requests an override. Their prompt includes the acceptance check and states that leaf workers never spawn.
 

@@ -121,90 +121,111 @@ No caveats. Most likely play, stated cold.`,
 Dispatch only independent players. At most five player models run per invocation, and each wave is capped by current worker capacity:
 
 ```javascript
-const players = [
-  { name: "CEO", goals: "...", leverage: "..." },
-  { name: "HR Director", goals: "...", leverage: "..." },
-  { name: "Skip-level", goals: "...", leverage: "..." }
-];
+async function runMultiPartyAdversary(userInput) {
+  const players = [
+    { name: "CEO", goals: "...", leverage: "..." },
+    { name: "HR Director", goals: "...", leverage: "..." },
+    { name: "Skip-level", goals: "...", leverage: "..." }
+  ];
 
-const PLAYER_OUTPUT_KEYS = ["move", "alliance", "threat", "price", "threatLevel"];
-const MAX_PLAYER_MODELS = 5;
-const remainingPlayers = players.slice(0, MAX_PLAYER_MODELS);
-const results = [];
+  const situation = getCurrentSituationFromUserInput(userInput);
+  const userRequestedModel = getExplicitUserRequestedModel(userInput); // undefined unless the user named a model
+  const PLAYER_OUTPUT_KEYS = ["move", "alliance", "threat", "price", "threatLevel"];
+  const MAX_PLAYER_MODELS = 5;
+  const COLLECTION_TIMEOUT_MS = 120_000;
+  const COLLECTION_TIMEOUT_DESCRIPTION = "120 seconds";
+  const remainingPlayers = players.slice(0, MAX_PLAYER_MODELS);
+  const results = [];
+  const collectionGaps = [];
 
-async function dispatchCodexPlayer(workerTaskName, player, userRequestedModel) {
-  const { task_name: workerTask } = await spawn_agent({
-    task_name: workerTaskName,
-    fork_turns: "none",
-    ...(userRequestedModel ? { model: userRequestedModel } : {}),
-    message: `Model ${player.name} as a self-interested actor.
+  async function dispatchCodexPlayer(workerTaskName, player, userRequestedModel) {
+    const { task_name: workerTask } = await spawn_agent({
+      task_name: workerTaskName,
+      fork_turns: "none",
+      ...(userRequestedModel ? { model: userRequestedModel } : {}),
+      message: `Model ${player.name} as a self-interested actor.
 
 PLAYER: ${player.name}
 GOALS: ${player.goals}
 LEVERAGE: ${player.leverage}
-SITUATION: [current state]
+SITUATION: ${situation}
 
 Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
-  });
-  return workerTask;
-}
-
-async function collectCodexPlayerFinals(workerTasks) {
-  const pendingWorkerTasks = new Set(workerTasks);
-  const resultsByWorkerTask = new Map();
-  const correctionRequested = new Set();
-
-  while (pendingWorkerTasks.size > 0) {
-    await wait_agent({ timeout_ms: 60_000 });
-    const deliveredFinals = readDeliveredFinals();
-
-    for (const [workerTask, response] of deliveredFinals) {
-      if (!pendingWorkerTasks.has(workerTask)) continue;
-      if (!hasExactKeys(response, PLAYER_OUTPUT_KEYS)) {
-        if (correctionRequested.has(workerTask)) {
-          throw new Error(`Worker ${workerTask} returned invalid keys after correction.`);
-        }
-        await followup_task({
-          target: workerTask,
-          message: `Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
-        });
-        correctionRequested.add(workerTask);
-        continue;
-      }
-      resultsByWorkerTask.set(workerTask, response);
-      pendingWorkerTasks.delete(workerTask);
-    }
+    });
+    return workerTask;
   }
-  return resultsByWorkerTask;
-}
 
-let nextPlayerDispatchIndex = 0;
-let waveIndex = 0;
-while (remainingPlayers.length > 0) {
-  const availableWorkerSlots = getAvailableWorkerSlots();
-  if (availableWorkerSlots <= 0) break;
+  async function collectCodexPlayerFinals(workerTasks) {
+    const pendingWorkerTasks = new Set(workerTasks);
+    const resultsByWorkerTask = new Map();
+    const correctionRequested = new Set();
+    const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;
 
-  const waveWidth = Math.min(
-    MAX_PLAYER_MODELS,
-    availableWorkerSlots,
-    remainingPlayers.length
-  );
-  const wave = remainingPlayers.splice(0, waveWidth);
-  const workerTasks = await Promise.all(
-    wave.map((player) => {
-      const workerTaskName = `player_w${waveIndex}_${nextPlayerDispatchIndex++}`;
-      return dispatchCodexPlayer(workerTaskName, player, userRequestedModel);
-    })
-  );
-  const resultsByWorkerTask = await collectCodexPlayerFinals(workerTasks);
-  results.push(...workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask)));
-  waveIndex += 1;
+    while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {
+      const remainingMs = collectionDeadline - Date.now();
+      if (remainingMs <= 0) break;
+      // Codex accepts a timeout_ms of at least 10 seconds, so the final wait can overshoot by at most that amount.
+      const waitMs = Math.max(10_000, Math.min(60_000, remainingMs));
+      await wait_agent({ timeout_ms: waitMs });
+      const deliveredFinals = readDeliveredFinals();
+
+      for (const [workerTask, response] of deliveredFinals) {
+        if (!pendingWorkerTasks.has(workerTask)) continue;
+        if (!hasExactKeys(response, PLAYER_OUTPUT_KEYS)) {
+          if (correctionRequested.has(workerTask)) {
+            throw new Error(`Worker ${workerTask} returned invalid keys after correction.`);
+          }
+          await followup_task({
+            target: workerTask,
+            message: `Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
+          });
+          correctionRequested.add(workerTask);
+          // The next pass rechecks collectionDeadline before waiting for this correction.
+          continue;
+        }
+        resultsByWorkerTask.set(workerTask, response);
+        pendingWorkerTasks.delete(workerTask);
+      }
+    }
+
+    const collectionGaps = [...pendingWorkerTasks].map((workerTask) =>
+      `No final was delivered for canonical player task ${workerTask} before the ${COLLECTION_TIMEOUT_DESCRIPTION} collection deadline.`,
+    );
+    return { resultsByWorkerTask, collectionGaps };
+  }
+
+  let nextPlayerDispatchIndex = 0;
+  let waveIndex = 0;
+  while (remainingPlayers.length > 0) {
+    const availableWorkerSlots = getAvailableWorkerSlots();
+    if (availableWorkerSlots <= 0) break;
+
+    const waveWidth = Math.min(
+      MAX_PLAYER_MODELS,
+      availableWorkerSlots,
+      remainingPlayers.length
+    );
+    const wave = remainingPlayers.splice(0, waveWidth);
+    const workerTasks = await Promise.all(
+      wave.map((player) => {
+        const workerTaskName = `player_w${waveIndex}_${nextPlayerDispatchIndex++}`;
+        return dispatchCodexPlayer(workerTaskName, player, userRequestedModel);
+      })
+    );
+    const { resultsByWorkerTask, collectionGaps: waveCollectionGaps } =
+      await collectCodexPlayerFinals(workerTasks);
+    results.push(...workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask)).filter(Boolean));
+    collectionGaps.push(...waveCollectionGaps);
+    waveIndex += 1;
+  }
+
+  return synthesizeBoard({ players, results, collectionGaps });
 }
 ```
 
 For Claude Code, use the same capped `wave` and `PLAYER_SCHEMA` with `Agent`; `Promise.all` remains limited to the bounded, independent wave.
 
-The controller owns Codex task names: each combines the wave number with one run-wide monotonic dispatch index, so it is unique and contains only lowercase letters, digits, and underscores. The player's human name stays in `message`. `wait_agent` signals a mailbox update, not a worker payload. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`. The controller never waits inside concurrent player dispatches or rereads stale responses after an unrelated update.
+The controller derives `situation` and `userRequestedModel` from user input before dispatch. `getExplicitUserRequestedModel()` returns `undefined` unless the user named a model, so the conditional model field never guesses an override. The controller owns Codex task names: each combines the wave number with one run-wide monotonic dispatch index, so it is unique and contains only lowercase letters, digits, and underscores. The player's human name stays in `message`. `wait_agent` accepts only its optional `timeout_ms`; it signals a mailbox update, not a worker payload, and can return without a player final. Each collector stops starting waits at its wall-clock deadline; Codex's 10-second minimum timeout bounds a final overshoot. A correction requested through `followup_task` returns through the same deadline-governed loop. `readDeliveredFinals()` yields newly delivered finals keyed by the canonical task name returned from `spawn_agent`. Unreturned canonical player tasks become `collectionGaps`, never invented `PLAYER_SCHEMA` fields, and the board synthesis receives those gaps. The controller never waits inside concurrent player dispatches or rereads stale responses after an unrelated update.
 
 ### Synthesis
 
@@ -226,6 +247,7 @@ After parallel agents return, synthesize in main context:
 **Optimal path:** [user's route through]
 **Who to neutralize first:** [priority target]
 **Who to recruit:** [potential ally + price]
+**Collection gaps:** [canonical player tasks that did not return before the deadline]
 ```
 
 ### Sequential Wargaming

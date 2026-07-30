@@ -436,6 +436,60 @@ function checkExplicitModelOverrides(relativePath, source) {
   );
 }
 
+function collectorDeadlineViolations(source) {
+  const violations = [];
+  const hasDeadline = /const collectionDeadline = Date\.now\(\) \+ COLLECTION_TIMEOUT_MS;/.test(source);
+  const hasDeadlineBoundedLoop = /while \(pendingWorkerTasks\.size > 0 && Date\.now\(\) < collectionDeadline\)/.test(source);
+  const hasRemainingWait = /const remainingMs = collectionDeadline - Date\.now\(\);[\s\S]*?if \(remainingMs <= 0\) break;[\s\S]*?const waitMs = Math\.max\(10_000, Math\.min\(60_000, remainingMs\)\);[\s\S]*?await wait_agent\(\{ timeout_ms: waitMs \}\);/.test(source);
+
+  if (!hasDeadline || !hasDeadlineBoundedLoop || !hasRemainingWait) {
+    violations.push("bound mailbox collection with one wall-clock deadline");
+  }
+
+  return violations;
+}
+
+function checkCollectorDeadlineFixtures() {
+  const boundedFixture = [
+    "const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;",
+    "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {",
+    "  const remainingMs = collectionDeadline - Date.now();",
+    "  if (remainingMs <= 0) break;",
+    "  const waitMs = Math.max(10_000, Math.min(60_000, remainingMs));",
+    "  await wait_agent({ timeout_ms: waitMs });",
+    "}",
+  ].join("\n");
+  const unboundedFixture = boundedFixture.replace(
+    "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline)",
+    "while (pendingWorkerTasks.size > 0)",
+  );
+  check(
+    collectorDeadlineViolations(unboundedFixture).includes(
+      "bound mailbox collection with one wall-clock deadline",
+    ),
+    "mailbox collector checker must reject an unbounded collector loop",
+  );
+}
+
+function workerTimeoutResultViolations(source) {
+  const hasTimeoutDescription = /const COLLECTION_TIMEOUT_DESCRIPTION = "\d+ seconds";/.test(source);
+  const hasTimeoutResult = /for \(const workerTask of pendingWorkerTasks\) \{[\s\S]*?done: false,[\s\S]*?gap: `Worker \$\{workerTask\} did not return before the \$\{COLLECTION_TIMEOUT_DESCRIPTION\} collection deadline\.`[\s\S]*?evidence: `No final was delivered for canonical worker task \$\{workerTask\} before the \$\{COLLECTION_TIMEOUT_DESCRIPTION\} collection deadline\.`[\s\S]*?confidence: "low",/.test(source);
+  return hasTimeoutDescription && hasTimeoutResult
+    ? []
+    : ["represent every timed-out worker as a low-confidence WORKER_SCHEMA result with a human-readable deadline"];
+}
+
+function playerCollectionGapViolations(source) {
+  const hasTimeoutDescription = /const COLLECTION_TIMEOUT_DESCRIPTION = "\d+ seconds";/.test(source);
+  const hasCollectionGaps = /const collectionGaps = \[\.\.\.pendingWorkerTasks\]\.map\(\(workerTask\) =>[\s\S]*?`No final was delivered for canonical player task \$\{workerTask\} before the \$\{COLLECTION_TIMEOUT_DESCRIPTION\} collection deadline\.`/.test(source);
+  const returnsGaps = /return \{ resultsByWorkerTask, collectionGaps \};/.test(source);
+  const carriesGapsToSynthesis = /collectionGaps\.push\(\.\.\.waveCollectionGaps\);[\s\S]*?synthesizeBoard\(\{ players, results, collectionGaps \}\);/.test(source);
+  const followupUsesSameDeadline = /while \(pendingWorkerTasks\.size > 0 && Date\.now\(\) < collectionDeadline\) \{[\s\S]*?await followup_task\(/.test(source);
+  return hasTimeoutDescription && hasCollectionGaps && returnsGaps && carriesGapsToSynthesis && followupUsesSameDeadline
+    ? []
+    : ["return canonical-player collection gaps, keep correction waits under the deadline, and carry gaps into synthesis"];
+}
+
 const claudeManifest = readJson(".claude-plugin/plugin.json");
 const codexManifest = readJson(".codex-plugin/plugin.json");
 const claudeMarketplace = readJson(".claude-plugin/marketplace.json");
@@ -449,6 +503,7 @@ checkManifest(claudeManifest, "Claude");
 checkManifest(codexManifest, "Codex");
 checkControllerTaskNameFixtures();
 checkHooksConfigFixture();
+checkCollectorDeadlineFixtures();
 
 if (hooksConfig) {
   for (const violation of hooksConfigViolations(
@@ -547,6 +602,10 @@ checkStaticContract(adversaryPath, adversarySkill, [
     /\.\.\.\(userRequestedModel\s*\?\s*\{\s*model:\s*userRequestedModel\s*\}\s*:\s*\{\s*\}\)/,
   ],
   [
+    "derive the adversary situation and model request from user input",
+    /async function runMultiPartyAdversary\(userInput\) \{[\s\S]*?const situation = getCurrentSituationFromUserInput\(userInput\);[\s\S]*?const userRequestedModel = getExplicitUserRequestedModel\(userInput\);/,
+  ],
+  [
     "require the exact Codex player output keys",
     /\["move",\s*"alliance",\s*"threat",\s*"price",\s*"threatLevel"\]/,
   ],
@@ -604,12 +663,16 @@ check(
   !adversaryDispatchBody?.includes("wait_agent"),
   `${adversaryPath} must not wait per player while a wave dispatches`,
 );
+for (const violation of collectorDeadlineViolations(adversaryCollectorBody ?? "")) {
+  errors.push(`${adversaryPath} must ${violation}`);
+}
+for (const violation of playerCollectionGapViolations(adversarySkill)) {
+  errors.push(`${adversaryPath} must ${violation}`);
+}
 check(
-  adversaryCollectorBody?.includes("while (pendingWorkerTasks.size > 0)") &&
-    adversaryCollectorBody.includes("await wait_agent({ timeout_ms: 60_000 })") &&
-    adversaryCollectorBody.includes("for (const [workerTask, response] of deliveredFinals)") &&
+  adversaryCollectorBody?.includes("for (const [workerTask, response] of deliveredFinals)") &&
     !adversaryCollectorBody.includes("readDeliveredFinal("),
-  `${adversaryPath} must wait from the controller loop until every player final arrives`,
+  `${adversaryPath} must consume newly delivered player finals in its controller loop`,
 );
 
 const unlimitedPowerPath = "plugins/palpatine/skills/unlimited-power/SKILL.md";
@@ -673,12 +736,16 @@ check(
   !unlimitedPowerDispatchBody?.includes("wait_agent"),
   `${unlimitedPowerPath} must not wait per worker while a wave dispatches`,
 );
+for (const violation of collectorDeadlineViolations(unlimitedPowerCollectorBody ?? "")) {
+  errors.push(`${unlimitedPowerPath} must ${violation}`);
+}
+for (const violation of workerTimeoutResultViolations(unlimitedPowerCollectorBody ?? "")) {
+  errors.push(`${unlimitedPowerPath} must ${violation}`);
+}
 check(
-  unlimitedPowerCollectorBody?.includes("while (pendingWorkerTasks.size > 0)") &&
-    unlimitedPowerCollectorBody.includes("await wait_agent({ timeout_ms: 60_000 })") &&
-    unlimitedPowerCollectorBody.includes("for (const [workerTask, response] of deliveredFinals)") &&
+  unlimitedPowerCollectorBody?.includes("for (const [workerTask, response] of deliveredFinals)") &&
     !unlimitedPowerCollectorBody.includes("readDeliveredFinal("),
-  `${unlimitedPowerPath} must wait from the controller loop until every worker final arrives`,
+  `${unlimitedPowerPath} must consume newly delivered worker finals in its controller loop`,
 );
 
 const palpatinePath = "plugins/palpatine/skills/palpatine/SKILL.md";
