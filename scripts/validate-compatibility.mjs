@@ -630,7 +630,7 @@ function topLevelKeywordIndices(source, keyword) {
 function collectorDeadlineViolations(source) {
   const cleanSource = stripJavaScriptComments(source);
   const pendingLoops = getJavaScriptWhileLoops(cleanSource).filter(
-    (loop) => /\bpendingWorkerTasks\.size\b/.test(loop.condition),
+    (loop) => loop.normalizedCondition.includes("pendingWorkerTasks.size"),
   );
   const hasDeadline = /const collectionDeadline = Date\.now\(\) \+ COLLECTION_TIMEOUT_MS;/.test(cleanSource);
   const boundedLoop = getBoundedPendingWorkerLoop(cleanSource);
@@ -668,10 +668,14 @@ function getStoredWorkerSchemaObject(fallback) {
   if (setStart === -1 || !topLevelKeywordIndices(source, "resultsByWorkerTask").includes(setStart)) {
     return null;
   }
-  const openingBrace = source.indexOf("{", setStart + setMarker.length);
-  if (openingBrace === -1) return null;
+  let openingBrace = setStart + setMarker.length;
+  while (/\s/.test(source[openingBrace] ?? "")) openingBrace += 1;
+  if (source[openingBrace] !== "{") return null;
   const closingBrace = findMatchingDelimiter(source, openingBrace, "{", "}");
-  return closingBrace === -1 ? null : source.slice(openingBrace + 1, closingBrace);
+  if (closingBrace === -1) return null;
+  let closingParenthesis = closingBrace + 1;
+  while (/\s/.test(source[closingParenthesis] ?? "")) closingParenthesis += 1;
+  return source[closingParenthesis] === ")" ? source.slice(openingBrace + 1, closingBrace) : null;
 }
 
 function workerTimeoutResultViolations(source) {
@@ -722,17 +726,19 @@ function playerCollectionGapViolations(collectorSource, runSource) {
   const waveBody = playerWaveLoop?.body ?? "";
   const collectIndex = waveBody.indexOf("const { resultsByWorkerTask, collectionGaps: waveCollectionGaps }");
   const waveGapPushIndex = waveBody.indexOf("collectionGaps.push(...waveCollectionGaps);");
-  const carriesGapsToSoleSynthesisReturn =
+  const hasSoleSynthesisReturn =
     topLevelRunReturns.length === 1 &&
+    /return synthesizeBoard\(\{ players, results, collectionGaps \}\);/.test(cleanRun.slice(runReturnIndex));
+  const carriesGapsToSoleSynthesisReturn =
+    hasSoleSynthesisReturn &&
     playerWaveLoop !== undefined &&
     topLevelKeywordIndices(cleanRun, "while").includes(playerWaveLoop.start) &&
+    playerWaveLoop.end < runReturnIndex &&
     topLevelKeywordIndices(waveBody, "const").includes(collectIndex) &&
     /const \{ resultsByWorkerTask, collectionGaps: waveCollectionGaps \} =\s*await collectCodexPlayerFinals\(workerTasks\);/.test(waveBody) &&
     waveGapPushIndex !== -1 &&
     topLevelKeywordIndices(waveBody, "collectionGaps").includes(waveGapPushIndex) &&
-    collectIndex < waveGapPushIndex &&
-    waveGapPushIndex < runReturnIndex &&
-    /return synthesizeBoard\(\{ players, results, collectionGaps \}\);/.test(cleanRun.slice(runReturnIndex));
+    collectIndex < waveGapPushIndex;
 
   return timeoutDescriptionIsDerived(cleanRun) &&
     gapPrecedesSoleCollectorReturn &&
@@ -758,7 +764,13 @@ function checkCollectorDeadlineFixtures() {
   );
   const appendedUnboundedFixture = `${boundedFixture}\nwhile (pendingWorkerTasks.size > 0) { await wait_agent({ timeout_ms: 60_000 }); }`;
   const appendedBarePendingFixture = `${boundedFixture}\nwhile (pendingWorkerTasks.size) { await wait_agent({ timeout_ms: 60_000 }); }`;
-  for (const fixture of [replacedBoundFixture, appendedUnboundedFixture, appendedBarePendingFixture]) {
+  const appendedCommentSeparatedPendingFixture = `${boundedFixture}\nwhile (pendingWorkerTasks /* still pending */ . size) { await wait_agent({ timeout_ms: 60_000 }); }`;
+  for (const fixture of [
+    replacedBoundFixture,
+    appendedUnboundedFixture,
+    appendedBarePendingFixture,
+    appendedCommentSeparatedPendingFixture,
+  ]) {
     check(
       collectorDeadlineViolations(fixture).includes(
         "use exactly one deadline-bounded pending-worker collection loop",
@@ -807,6 +819,20 @@ function checkTimeoutFallbackFixtures() {
   check(
     workerTimeoutResultViolations(workerNestedFallbackFixture).length > 0,
     "worker timeout checker must reject a fallback nested in if (false)",
+  );
+  const workerUnstoredSchemaFixture = [
+    "const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;",
+    "const collectionDeadline = Date.now() + COLLECTION_TIMEOUT_MS;",
+    "while (pendingWorkerTasks.size > 0 && Date.now() < collectionDeadline) {}",
+    "for (const workerTask of pendingWorkerTasks) {",
+    "  resultsByWorkerTask.set(workerTask, undefined);",
+    "  const timeoutResult = { result: \"x\", done: false, gap: \"x\", evidence: \"x\", confidence: \"low\", };",
+    "}",
+    "return workerTasks.map((workerTask) => resultsByWorkerTask.get(workerTask));",
+  ].join("\n");
+  check(
+    workerTimeoutResultViolations(workerUnstoredSchemaFixture).length > 0,
+    "worker timeout checker must reject an unstored schema object after an undefined set argument",
   );
 
   const playerEarlyReturnFixture = [
@@ -859,6 +885,19 @@ function checkTimeoutFallbackFixtures() {
   check(
     playerCollectionGapViolations(playerValidCollectorFixture, playerRunWithinWaveFixture).length === 0,
     "player timeout checker must accept direct collection handling in the wave loop",
+  );
+  const playerEarlySynthesisReturnFixture = [
+    "const COLLECTION_TIMEOUT_DESCRIPTION = `${COLLECTION_TIMEOUT_MS / 1_000} seconds`;",
+    `const leadingRunPreamble = "${"x".repeat(240)}";`,
+    "return synthesizeBoard({ players, results, collectionGaps });",
+    "while (remainingPlayers.length > 0) {",
+    "  const { resultsByWorkerTask, collectionGaps: waveCollectionGaps } = await collectCodexPlayerFinals(workerTasks);",
+    "  collectionGaps.push(...waveCollectionGaps);",
+    "}",
+  ].join("\n");
+  check(
+    playerCollectionGapViolations(playerValidCollectorFixture, playerEarlySynthesisReturnFixture).length > 0,
+    "player timeout checker must reject a synthesis return before the wave loop",
   );
   const playerRunWithoutGapCarryFixture = playerRunFixture.replace(
     "collectionGaps.push(...waveCollectionGaps);\n",
