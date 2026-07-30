@@ -84,12 +84,10 @@ const PLAYER_SCHEMA = {
 ### Host Adapters
 
 **Codex:**
-- Spawn one independent worker per player with `spawn_agent`.
-- Use `fork_turns: "none"` and provide all player context in the prompt.
+- Use `spawn_agent` with `fork_turns: "none"` and all player context in the prompt.
 - Ask for the exact keys `move`, `alliance`, `threat`, `price`, and `threatLevel`.
-- Dispatch independent players in parallel, use `wait_agent` for mailbox completion, then synthesize.
-- Use `followup_task` for corrections; leaf workers never spawn.
-- Inherit the orchestrator model unless the user explicitly requests an override.
+- Use `wait_agent` for completion, then `followup_task` when a response needs correction. Leaf workers never spawn.
+- Inherit the orchestrator model. Forward `userRequestedModel` only when the user explicitly named a model; never infer an override.
 
 **Claude Code:**
 - Use `Agent` with `PLAYER_SCHEMA` or `ADVERSARY_SCHEMA`.
@@ -118,34 +116,69 @@ No caveats. Most likely play, stated cold.`,
 })
 ```
 
-### Multi-Party (Parallel)
+### Multi-Party (Bounded Waves)
 
-Spawn all players simultaneously — they're independent analyses:
+Dispatch only independent players. At most five player models run per invocation, and each wave is capped by current worker capacity:
 
 ```javascript
 const players = [
-  { name: "CEO", goals: "...", leverage: "..." },
-  { name: "HR Director", goals: "...", leverage: "..." },
-  { name: "Skip-level", goals: "...", leverage: "..." }
+  { taskName: "player_ceo", name: "CEO", goals: "...", leverage: "..." },
+  { taskName: "player_hr_director", name: "HR Director", goals: "...", leverage: "..." },
+  { taskName: "player_skip_level", name: "Skip-level", goals: "...", leverage: "..." }
 ];
 
-// All agents run in parallel
-const results = await Promise.all(players.map(p => 
-  Agent({
-    description: `Player: ${p.name}`,
-    prompt: `Model ${p.name} as self-interested actor.
+const PLAYER_OUTPUT_KEYS = ["move", "alliance", "threat", "price", "threatLevel"];
+const MAX_PLAYER_MODELS = 5;
+const remainingPlayers = players.slice(0, MAX_PLAYER_MODELS);
+const results = [];
 
-PLAYER: ${p.name}
-GOALS: ${p.goals}
-LEVERAGE: ${p.leverage}
+async function dispatchCodexPlayer(player, userRequestedModel) {
+  const { task_name: workerTask } = await spawn_agent({
+    task_name: player.taskName,
+    fork_turns: "none",
+    ...(userRequestedModel ? { model: userRequestedModel } : {}),
+    message: `Model ${player.name} as a self-interested actor.
+
+PLAYER: ${player.name}
+GOALS: ${player.goals}
+LEVERAGE: ${player.leverage}
 SITUATION: [current state]
 
-What's their move? Who do they ally with? How might they hurt target? What buys them off?
-Assume competence and selfishness.`,
-    schema: PLAYER_SCHEMA
-  })
-));
+Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
+  });
+
+  await wait_agent({ timeout_ms: 60_000 });
+  let response = readDeliveredFinal(workerTask); // read the worker final from the mailbox event
+  if (!hasExactKeys(response, PLAYER_OUTPUT_KEYS)) {
+    await followup_task({
+      target: workerTask,
+      message: `Return JSON with exactly these keys: ${PLAYER_OUTPUT_KEYS.join(", ")}.`
+    });
+    await wait_agent({ timeout_ms: 60_000 });
+    response = readDeliveredFinal(workerTask);
+  }
+  return response;
+}
+
+while (remainingPlayers.length > 0) {
+  const availableWorkerSlots = getAvailableWorkerSlots();
+  if (availableWorkerSlots <= 0) break;
+
+  const waveWidth = Math.min(
+    MAX_PLAYER_MODELS,
+    availableWorkerSlots,
+    remainingPlayers.length
+  );
+  const wave = remainingPlayers.splice(0, waveWidth);
+  results.push(...await Promise.all(
+    wave.map((player) => dispatchCodexPlayer(player, userRequestedModel))
+  ));
+}
 ```
+
+For Claude Code, use the same capped `wave` and `PLAYER_SCHEMA` with `Agent`; `Promise.all` remains limited to the bounded, independent wave.
+
+`wait_agent` signals a mailbox update, not a worker payload. `readDeliveredFinal(workerTask)` denotes reading that worker's final message from the delivered mailbox event.
 
 ### Synthesis
 

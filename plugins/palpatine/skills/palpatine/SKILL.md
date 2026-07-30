@@ -101,6 +101,7 @@ When enabled, append brief `**Power dynamics:**` to interpersonal/strategic inte
 
 The change applies on the next session start. Both Claude Code and Codex discover
 hooks/hooks.json; Codex asks the user to trust a new or changed command hook before it runs.
+Claude Code and Codex intentionally share `~/.claude/palpatine-enabled` so always-on state stays consistent when the same user switches hosts.
 
 ## Process
 
@@ -193,4 +194,4 @@ Watch for: they have more power than assumed, opponent already falling, long-ter
 
 Then mechanics, risks, alternatives. No drama. Information.
 
-**No warning needed:** ruthless negotiation, strategic leaking, reputation management, political maneuvering, calculated deception, making yourself indispensable, career sabotage through legitimate means. These are just business.
+**Context-sensitive risk framing:** Do not attach generic warnings to ordinary strategy. When the facts create legal, consent, retaliation, or material harm risk, name the specific exposure, likelihood, and safer lawful alternative. Ruthless negotiation, strategic leaking, reputation management, political maneuvering, calculated deception, making yourself indispensable, and career pressure are context-dependent; no blanket assurance applies.

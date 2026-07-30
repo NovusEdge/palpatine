@@ -64,7 +64,11 @@ for (let wave = 0; wave < BUDGET.maxWaves; wave++) {
     );
   }
 
-  const effectiveWaveWidth = Math.min(5, availableWorkerSlots, remainingDispatchBudget);
+  const effectiveWaveWidth = Math.min(
+    BUDGET.maxWidth,
+    availableWorkerSlots,
+    remainingDispatchBudget
+  );
   const batch = plan.slice(0, effectiveWaveWidth);
 
   // A wave is independent-only, so Promise.all is safe. Dependent work was deferred
@@ -107,9 +111,26 @@ const WORKER_SCHEMA = {
 `dispatchWorker(task, acceptanceCheck)` is the only host-specific boundary.
 
 **Codex `dispatchWorker`:**
-1. Call `spawn_agent` with a self-contained task, `fork_turns: "none"`, and no model override.
-2. Require the exact final-response headings `result`, `done`, `gap`, `evidence`, and `confidence`.
-3. Use `wait_agent` for mailbox completion and normalize the final response to `WORKER_SCHEMA`.
+```javascript
+async function dispatchWorker(task, acceptanceCheck, userRequestedModel) {
+  const { task_name: workerTask } = await spawn_agent({
+    task_name: task.name,
+    fork_turns: "none",
+    ...(userRequestedModel ? { model: userRequestedModel } : {}),
+    message: `${task.prompt}
+
+Acceptance check: ${acceptanceCheck}
+Leaf workers never spawn subagents.
+Return the exact headings: result, done, gap, evidence, confidence.`
+  });
+
+  await wait_agent({ timeout_ms: 60_000 });
+  const response = readDeliveredFinal(workerTask); // read the worker final from the mailbox event
+  return normalizeWorkerResponse(response);
+}
+```
+
+Pass `userRequestedModel` only when the user explicitly named a model. Otherwise omit it and inherit the orchestrator model. `wait_agent` signals a mailbox update; it does not return the worker payload. Read the delivered final for `workerTask`, which requires the exact headings `result`, `done`, `gap`, `evidence`, and `confidence`, then normalize it to `WORKER_SCHEMA`.
 
 Codex workers inherit the orchestrator model unless the user explicitly requests an override. Their prompt includes the acceptance check and states that leaf workers never spawn.
 

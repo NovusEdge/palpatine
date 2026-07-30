@@ -72,17 +72,24 @@ function checkSkillMetadata() {
     entries = fs.readdirSync(skillsPath, { withFileTypes: true });
   } catch (error) {
     errors.push(`plugins/palpatine/skills: ${error.message}`);
-    return;
+    return [];
   }
 
-  for (const entry of entries.filter((entry) => entry.isDirectory())) {
-    const skillPath = path.join("plugins", "palpatine", "skills", entry.name);
+  const skillNames = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+
+  for (const skillName of skillNames) {
+    const skillPath = path.join("plugins", "palpatine", "skills", skillName);
     check(fs.existsSync(path.join(root, skillPath, "SKILL.md")), `${skillPath}/SKILL.md is missing`);
     check(
       fs.existsSync(path.join(root, skillPath, "agents", "openai.yaml")),
       `${skillPath}/agents/openai.yaml is missing`,
     );
   }
+
+  return skillNames;
 }
 
 function countSteps(seductionData) {
@@ -100,60 +107,34 @@ function listFiles(directory) {
   });
 }
 
-async function exerciseUnlimitedPowerLoop({ plan, availableWorkerSlots }) {
-  const skill = readText("plugins/palpatine/skills/unlimited-power/SKILL.md");
-  const loopSource = [...skill.matchAll(/```javascript\s*([\s\S]*?)```/g)]
-    .map((match) => match[1])
-    .find(
-      (source) =>
-        source.includes("defineAcceptanceCheck") &&
-        source.includes("getAvailableWorkerSlots"),
-    );
-
-  if (!loopSource) {
-    errors.push("unlimited-power must document an executable orchestration loop");
-    return null;
-  }
-
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-  let dispatches = 0;
-
-  try {
-    const runLoop = new AsyncFunction(
-      "BUDGET",
-      "objective",
-      "defineAcceptanceCheck",
-      "decompose",
-      "getAvailableWorkerSlots",
-      "dispatchWorker",
-      "synthesizeGap",
-      "replan",
-      "terminate",
-      loopSource,
-    );
-    const result = await runLoop(
-      { maxWaves: 5, maxWidth: 5, maxDispatch: 20, maxDepth: 1 },
-      "objective",
-      () => ({ passes: () => false }),
-      () => plan,
-      () => availableWorkerSlots,
-      async () => {
-        dispatches += 1;
-        return { done: false, gap: "remaining work" };
-      },
-      () => "remaining work",
-      () => [],
-      (status, gap) => ({ status, gap }),
-    );
-    return { ...result, dispatches };
-  } catch (error) {
-    errors.push(`unlimited-power loop could not execute: ${error.message}`);
-    return null;
+function checkStaticContract(relativePath, source, requirements) {
+  for (const [description, pattern] of requirements) {
+    check(pattern.test(source), `${relativePath} must ${description}`);
   }
 }
 
-const claudeManifest = readJson("plugins/palpatine/.claude-plugin/plugin.json");
-const codexManifest = readJson("plugins/palpatine/.codex-plugin/plugin.json");
+function checkSourceOrder(relativePath, source, orderedMarkers, description) {
+  let previousIndex = -1;
+  for (const marker of orderedMarkers) {
+    const index = source.indexOf(marker);
+    if (index === -1 || index <= previousIndex) {
+      errors.push(`${relativePath} must ${description}`);
+      return;
+    }
+    previousIndex = index;
+  }
+}
+
+function checkExplicitModelOverrides(relativePath, source) {
+  const overrides = source.match(/\bmodel:\s*[^,}\n]+/g) ?? [];
+  check(
+    overrides.length > 0 && overrides.every((override) => override.trim() === "model: userRequestedModel"),
+    `${relativePath} must not set an implicit Codex model override`,
+  );
+}
+
+const claudeManifest = readJson(".claude-plugin/plugin.json");
+const codexManifest = readJson(".codex-plugin/plugin.json");
 const claudeMarketplace = readJson(".claude-plugin/marketplace.json");
 const codexMarketplace = readJson(".agents/plugins/marketplace.json");
 const lawData = readJson("plugins/palpatine/skills/laws/references/law_index.json");
@@ -215,14 +196,16 @@ if (codexPlugin) {
 
 resolvesTo("skills", "plugins/palpatine/skills");
 resolvesTo("hooks", "plugins/palpatine/hooks");
+resolvesTo(".claude-plugin/plugin.json", "plugins/palpatine/.claude-plugin/plugin.json");
 resolvesTo(".codex-plugin", "plugins/palpatine/.codex-plugin");
+resolvesTo(".github/plugin/marketplace.json", ".claude-plugin/marketplace.json");
 resolvesTo("law_index.json", "plugins/palpatine/skills/laws/references/law_index.json");
 resolvesTo("war_index.json", "plugins/palpatine/skills/war/references/war_index.json");
 resolvesTo("seduction_index.json", "plugins/palpatine/skills/seduce/references/seduction_index.json");
 
-checkSkillMetadata();
+const skillNames = checkSkillMetadata();
 
-for (const skillName of ["adversary", "defense", "unlimited-power", "wargame"]) {
+for (const skillName of skillNames) {
   const skillPath = `plugins/palpatine/skills/${skillName}/SKILL.md`;
   const skill = readText(skillPath);
   check(
@@ -234,6 +217,107 @@ for (const skillName of ["adversary", "defense", "unlimited-power", "wargame"]) 
     `${skillPath} must document the Codex invocation`,
   );
 }
+
+const adversaryPath = "plugins/palpatine/skills/adversary/SKILL.md";
+const adversarySkill = readText(adversaryPath);
+checkStaticContract(adversaryPath, adversarySkill, [
+  ["document Codex spawn_agent dispatches", /\bspawn_agent\s*\(/],
+  [
+    "capture the task_name returned by spawn_agent",
+    /\{\s*task_name:\s*workerTask\s*\}\s*=\s*await spawn_agent\s*\(/,
+  ],
+  ["set Codex fork_turns to none", /fork_turns:\s*["']none["']/],
+  [
+    "forward a model only when the user explicitly requested one",
+    /\.\.\.\(userRequestedModel\s*\?\s*\{\s*model:\s*userRequestedModel\s*\}\s*:\s*\{\s*\}\)/,
+  ],
+  [
+    "require the exact Codex player output keys",
+    /\["move",\s*"alliance",\s*"threat",\s*"price",\s*"threatLevel"\]/,
+  ],
+  [
+    "use wait_agent without an unsupported target parameter",
+    /\bwait_agent\s*\(\s*\{\s*timeout_ms\s*:/,
+  ],
+  ["use followup_task to correct Codex workers", /\bfollowup_task\s*\(/],
+  ["target followup_task with the returned worker task name", /target:\s*workerTask/],
+  [
+    "wait for a corrected Codex worker response after followup_task",
+    /await followup_task\([\s\S]*?\);\s*await wait_agent\(\s*\{\s*timeout_ms\s*:[\s\S]*?response\s*=\s*readDeliveredFinal\(workerTask\)/,
+  ],
+  ["cap player models at five", /MAX_PLAYER_MODELS\s*=\s*5/],
+  [
+    "bound each Codex dispatch wave by worker capacity and the five-worker cap",
+    /Math\.min\(\s*MAX_PLAYER_MODELS,\s*availableWorkerSlots,\s*remainingPlayers\.length\s*\)/s,
+  ],
+]);
+check(
+  !/\bwait_agent\s*\(\s*\{\s*target\s*:/.test(adversarySkill),
+  `${adversaryPath} must not pass an unsupported target parameter to wait_agent`,
+);
+checkExplicitModelOverrides(adversaryPath, adversarySkill);
+
+const unlimitedPowerPath = "plugins/palpatine/skills/unlimited-power/SKILL.md";
+const unlimitedPowerSkill = readText(unlimitedPowerPath);
+checkStaticContract(unlimitedPowerPath, unlimitedPowerSkill, [
+  ["bound orchestration waves with BUDGET.maxWidth", /BUDGET\.maxWidth/],
+  [
+    "combine BUDGET.maxWidth, available worker slots, and remaining dispatch budget",
+    /Math\.min\(\s*BUDGET\.maxWidth,\s*availableWorkerSlots,\s*remainingDispatchBudget\s*\)/s,
+  ],
+  ["document a Codex spawn_agent adapter", /\bspawn_agent\s*\(/],
+  [
+    "capture the task_name returned by spawn_agent",
+    /\{\s*task_name:\s*workerTask\s*\}\s*=\s*await spawn_agent\s*\(/,
+  ],
+  ["set Codex fork_turns to none", /fork_turns:\s*["']none["']/],
+  [
+    "forward a Codex model only when the user explicitly requested one",
+    /\.\.\.\(userRequestedModel\s*\?\s*\{\s*model:\s*userRequestedModel\s*\}\s*:\s*\{\s*\}\)/,
+  ],
+  [
+    "use wait_agent without an unsupported target parameter",
+    /\bwait_agent\s*\(\s*\{\s*timeout_ms\s*:/,
+  ],
+  ["explain that wait_agent returns a mailbox update rather than the worker payload", /wait_agent` signals a mailbox update/],
+  [
+    "terminate stalled with an explicit capacity gap when no worker slot is available",
+    /if \(availableWorkerSlots <= 0\) \{[\s\S]*?return terminate\(\s*"stalled",\s*"No worker capacity is available; retry when a worker slot opens\."\s*\);/,
+  ],
+  [
+    "terminate stalled with an explicit plan gap when decomposition produces no runnable tasks",
+    /if \(plan\.length === 0\) \{[\s\S]*?"No runnable tasks were produced for the objective\."[\s\S]*?return terminate\("stalled", gap\);/,
+  ],
+]);
+checkSourceOrder(
+  unlimitedPowerPath,
+  unlimitedPowerSkill,
+  [
+    "if (plan.length === 0)",
+    "if (availableWorkerSlots <= 0)",
+    "dispatchWorker(task, done)",
+    "dispatched += batch.length",
+  ],
+  "check empty plans and worker capacity before dispatching or consuming dispatch budget",
+);
+check(
+  !/\bwait_agent\s*\(\s*\{\s*target\s*:/.test(unlimitedPowerSkill),
+  `${unlimitedPowerPath} must not pass an unsupported target parameter to wait_agent`,
+);
+checkExplicitModelOverrides(unlimitedPowerPath, unlimitedPowerSkill);
+
+const palpatinePath = "plugins/palpatine/skills/palpatine/SKILL.md";
+const palpatineSkill = readText(palpatinePath);
+checkStaticContract(palpatinePath, palpatineSkill, [
+  [
+    "explain that Claude Code and Codex intentionally share ~/.claude/palpatine-enabled",
+    /Claude Code and Codex intentionally share `~\/\.claude\/palpatine-enabled`/,
+  ],
+  [
+    "frame legal, consent, retaliation, and material-harm risks contextually",
+    /legal, consent, retaliation, or material harm/i,
+  ],
+]);
 
 const readme = readText("README.md");
 check(
@@ -270,41 +354,6 @@ for (const absolutePath of packagedTextFiles) {
     `${path.relative(root, absolutePath)} must use namespaced always-on commands`,
   );
 }
-
-const noCapacityResult = await exerciseUnlimitedPowerLoop({
-  plan: ["task"],
-  availableWorkerSlots: 0,
-});
-check(
-  noCapacityResult?.status === "stalled",
-  "unlimited-power must terminate stalled when no worker capacity is available",
-);
-check(
-  typeof noCapacityResult?.gap === "string" &&
-    /capacity|worker slot/i.test(noCapacityResult.gap),
-  "unlimited-power must report an explicit capacity gap when no worker slot is available",
-);
-check(
-  noCapacityResult?.dispatches === 0,
-  "unlimited-power must not consume dispatch budget when no worker slot is available",
-);
-
-const emptyPlanResult = await exerciseUnlimitedPowerLoop({
-  plan: [],
-  availableWorkerSlots: 1,
-});
-check(
-  emptyPlanResult?.status === "stalled",
-  "unlimited-power must terminate stalled when decomposition produces no runnable tasks",
-);
-check(
-  typeof emptyPlanResult?.gap === "string" && /plan|task|work/i.test(emptyPlanResult.gap),
-  "unlimited-power must report an explicit gap when decomposition produces no runnable tasks",
-);
-check(
-  emptyPlanResult?.dispatches === 0,
-  "unlimited-power must not consume dispatch budget for an empty plan",
-);
 
 if (lawData) check(lawData.laws?.length === 48, "Law data must contain 48 laws");
 if (warData) check(warData.strategies?.length === 33, "War data must contain 33 strategies");
