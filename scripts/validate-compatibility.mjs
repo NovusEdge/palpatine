@@ -714,6 +714,26 @@ function checkCodexCapacityFixtures() {
     codexCapacityHelperViolations(canonicalCapacityFixture).length === 0,
     "Codex capacity checker must accept the canonical active-versus-completed classifier",
   );
+  const interpolatedCapacityFixture = [
+    "const liveCode = `${(() => {",
+    "function agentConsumesCodexSlot(agent) {",
+    "  const status = agent.agent_status;",
+    '  if (["pending", "running", "working"].includes(status)) return true;',
+    "  return status !== null &&",
+    '    typeof status === "object" &&',
+    '    !Object.prototype.hasOwnProperty.call(status, "completed");',
+    "}",
+    "function availableCodexWorkerSlots(agents) {",
+    "  const activeAgentCount = agents.filter(agentConsumesCodexSlot).length;",
+    "  return Math.max(0, CODEX_TEAM_SLOT_LIMIT - activeAgentCount);",
+    "}",
+    'return "";',
+    "})()}`;",
+  ].join("\n");
+  check(
+    codexCapacityHelperViolations(interpolatedCapacityFixture).length === 0,
+    "Codex capacity checker must inspect live code inside template interpolation",
+  );
 }
 
 function stripJavaScriptComments(source, { maskLiterals = false } = {}) {
@@ -724,8 +744,11 @@ function stripJavaScriptComments(source, { maskLiterals = false } = {}) {
   let functionHeaderKind = null;
   let pendingAsyncFunctionDeclaration = false;
   let previousToken = "start";
-  const parenthesisStack = [];
-  const braceStack = [];
+  let parenthesisStack = [];
+  let braceStack = [];
+  let closesTemplateInterpolation = false;
+  let mode = "code";
+  const templateFrames = [];
   const controlHeadKeywords = new Set(["catch", "for", "if", "switch", "while", "with"]);
   const blockPrefixKeywords = new Set(["do", "else", "finally", "try"]);
   const functionDeclarationContexts = new Set([
@@ -756,10 +779,86 @@ function stripJavaScriptComments(source, { maskLiterals = false } = {}) {
   const isIdentifierPart = (character) => /[A-Za-z0-9_$]/.test(character ?? "");
   const isLineTerminator = (character) =>
     ["\n", "\r", "\u2028", "\u2029"].includes(character);
+  const appendLiteralCharacter = (character) => {
+    result += maskLiterals && !isLineTerminator(character)
+      ? " "
+      : character;
+  };
+  const captureCodeContext = () => ({
+    canStartRegex,
+    pendingControlParenthesis,
+    functionHeaderKind,
+    pendingAsyncFunctionDeclaration,
+    previousToken,
+    parenthesisStack,
+    braceStack,
+    closesTemplateInterpolation,
+  });
+  const restoreCodeContext = (context) => {
+    ({
+      canStartRegex,
+      pendingControlParenthesis,
+      functionHeaderKind,
+      pendingAsyncFunctionDeclaration,
+      previousToken,
+      parenthesisStack,
+      braceStack,
+      closesTemplateInterpolation,
+    } = context);
+  };
+  const resetCodeContext = ({ closesInterpolation = false } = {}) => {
+    canStartRegex = true;
+    pendingControlParenthesis = false;
+    functionHeaderKind = null;
+    pendingAsyncFunctionDeclaration = false;
+    previousToken = "start";
+    parenthesisStack = [];
+    braceStack = [];
+    closesTemplateInterpolation = closesInterpolation;
+  };
+  const markTemplateAsOperand = () => {
+    canStartRegex = false;
+    pendingControlParenthesis = false;
+    functionHeaderKind = null;
+    pendingAsyncFunctionDeclaration = false;
+    previousToken = "operand";
+  };
 
   while (index < source.length) {
     const character = source[index];
     const nextCharacter = source[index + 1];
+
+    if (mode === "template") {
+      if (character === "\\") {
+        appendLiteralCharacter(character);
+        index += 1;
+        if (index < source.length) {
+          appendLiteralCharacter(source[index]);
+          index += 1;
+        }
+        continue;
+      }
+      if (character === "`") {
+        appendLiteralCharacter(character);
+        index += 1;
+        const outerCodeContext = templateFrames.pop();
+        if (!outerCodeContext) continue;
+        restoreCodeContext(outerCodeContext);
+        markTemplateAsOperand();
+        mode = "code";
+        continue;
+      }
+      if (character === "$" && nextCharacter === "{") {
+        result += "${";
+        index += 2;
+        resetCodeContext({ closesInterpolation: true });
+        mode = "code";
+        continue;
+      }
+      appendLiteralCharacter(character);
+      index += 1;
+      continue;
+    }
 
     if (/\s/.test(character)) {
       result += character;
@@ -783,7 +882,15 @@ function stripJavaScriptComments(source, { maskLiterals = false } = {}) {
       continue;
     }
 
-    if (["\"", "'", "`"].includes(character)) {
+    if (character === "`") {
+      templateFrames.push(captureCodeContext());
+      appendLiteralCharacter(character);
+      index += 1;
+      mode = "template";
+      continue;
+    }
+
+    if (["\"", "'"].includes(character)) {
       const quote = character;
       let escaped = false;
       result += maskLiterals ? " " : character;
@@ -992,6 +1099,17 @@ function stripJavaScriptComments(source, { maskLiterals = false } = {}) {
       continue;
     }
 
+    if (
+      character === "}" &&
+      closesTemplateInterpolation &&
+      braceStack.length === 0
+    ) {
+      result += character;
+      index += 1;
+      mode = "template";
+      continue;
+    }
+
     if (character === "}") {
       const closesStatementBlock = braceStack.pop() ?? false;
       result += character;
@@ -1147,6 +1265,72 @@ const escapedSlash = /a\/b[/*]/;`;
     stripJavaScriptComments(functionExpressionDivision) ===
       "const quotient = function () {} / divisor; ",
     "comment stripper must keep division after function expressions",
+  );
+
+  const structuredTemplate = [
+    "const rendered = `literal // keep ${",
+    "  (() => {",
+    "    const matcher = /[/*]/;",
+    '    const label = "value // keep";',
+    "    const value = { nested: { count: 1 /* remove block */ } };",
+    "    return matcher.test(label) ? value.nested.count : 0; // remove line",
+    "  })()",
+    "} tail /* keep */`; // remove outer",
+  ].join("\n");
+  const expectedStructuredTemplate = [
+    "const rendered = `literal // keep ${",
+    "  (() => {",
+    "    const matcher = /[/*]/;",
+    '    const label = "value // keep";',
+    "    const value = { nested: { count: 1  } };",
+    "    return matcher.test(label) ? value.nested.count : 0; ",
+    "  })()",
+    "} tail /* keep */`; ",
+  ].join("\n");
+  check(
+    stripJavaScriptComments(structuredTemplate) === expectedStructuredTemplate,
+    "comment stripper must parse template interpolation as nested JavaScript",
+  );
+
+  const nestedTemplate = [
+    "const nested = `outer ${",
+    "  `inner // keep ${",
+    "    items.map((item) => ({ value: item /* remove */ })).length",
+    "  } tail /* keep */`",
+    "} end`; // remove outer",
+  ].join("\n");
+  const expectedNestedTemplate = [
+    "const nested = `outer ${",
+    "  `inner // keep ${",
+    "    items.map((item) => ({ value: item  })).length",
+    "  } tail /* keep */`",
+    "} end`; ",
+  ].join("\n");
+  check(
+    stripJavaScriptComments(nestedTemplate) === expectedNestedTemplate,
+    "comment stripper must recurse through nested template literals",
+  );
+
+  const maskedTemplateInput = [
+    "const masked = `literal ${",
+    "  format({",
+    "    pattern: /[//]/,",
+    '    label: "secret",',
+    "    nested: `inner ${value /* remove */} tail`",
+    "  })",
+    "} suffix`;",
+  ].join("\n");
+  const maskedTemplate = stripJavaScriptComments(maskedTemplateInput, {
+    maskLiterals: true,
+  });
+  check(
+    !["literal", "[//]", "secret", "inner", "tail", "suffix"].some((literal) =>
+      maskedTemplate.includes(literal)
+    ) &&
+      maskedTemplate.includes("${\n  format({") &&
+      maskedTemplate.includes("${value }") &&
+      (maskedTemplate.match(/\$\{/g) ?? []).length === 2,
+    "literal masking must retain outer and nested template interpolation structure",
   );
 }
 
