@@ -1,0 +1,39 @@
+{
+  "name": "palpatine",
+  "version": "2.1.0",
+  "description": "Strategic analysis, adversary simulation, and power-dynamics playbooks for difficult decisions.",
+  "author": {
+    "name": "NovusEdge",
+    "url": "https://github.com/NovusEdge"
+  },
+  "homepage": "https://github.com/NovusEdge/palpatine#readme",
+  "repository": "https://github.com/NovusEdge/palpatine",
+  "license": "LicenseRef-SPL-1.0",
+  "keywords": [
+    "strategy",
+    "power-dynamics",
+    "adversary-simulation",
+    "decision-making",
+    "negotiation"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Palpatine",
+    "shortDescription": "Strategic analysis and adversary simulation",
+    "longDescription": "Diagnose power dynamics, pressure-test decisions, model opponents, and turn difficult interpersonal or organizational situations into concrete moves.",
+    "developerName": "NovusEdge",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/NovusEdge/palpatine",
+    "defaultPrompt": [
+      "Diagnose the power dynamics in this situation and tell me what to do.",
+      "Wargame this decision and show the likely counter-moves.",
+      "Identify the manipulation pattern and give me a defense."
+    ],
+    "brandColor": "#991B1B"
+  }
+}

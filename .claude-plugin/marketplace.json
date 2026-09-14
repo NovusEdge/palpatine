@@ -1,0 +1,20 @@
+{
+  "name": "palpatine",
+  "owner": {
+    "name": "NovusEdge"
+  },
+  "description": "Strategic analysis and adversary simulation plugins from NovusEdge.",
+  "plugins": [
+    {
+      "name": "palpatine",
+      "source": "./plugins/palpatine",
+      "description": "Diagnose power dynamics, model opponents, and turn difficult situations into concrete moves.",
+      "category": "Productivity",
+      "tags": [
+        "strategy",
+        "negotiation",
+        "power-dynamics"
+      ]
+    }
+  ]
+}

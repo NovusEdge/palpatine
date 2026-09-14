@@ -1,0 +1,4 @@
+interface:
+  display_name: "Seduction Reference"
+  short_description: "Browse seduction archetypes, phases, and patterns"
+  default_prompt: "Use $palpatine:seduce to find the seduction patterns relevant to this situation."

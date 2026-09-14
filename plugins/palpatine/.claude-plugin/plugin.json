@@ -1,0 +1,12 @@
+{
+  "name": "palpatine",
+  "displayName": "Palpatine",
+  "version": "2.1.0",
+  "description": "Strategic analysis, adversary simulation, and power-dynamics playbooks for difficult decisions.",
+  "author": {
+    "name": "NovusEdge"
+  },
+  "license": "LicenseRef-SPL-1.0",
+  "keywords": ["power", "strategy", "48-laws", "dark-side", "unlimited-power", "machiavelli"],
+  "hooks": "./hooks/hooks.json"
+}

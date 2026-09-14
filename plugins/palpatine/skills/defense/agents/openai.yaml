@@ -1,0 +1,4 @@
+interface:
+  display_name: "Defense Mode"
+  short_description: "Detect manipulation and choose concrete counter-moves"
+  default_prompt: "Use $palpatine:defense to identify the manipulation pattern and give me a defense."

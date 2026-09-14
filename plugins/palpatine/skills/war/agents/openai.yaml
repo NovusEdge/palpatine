@@ -1,0 +1,4 @@
+interface:
+  display_name: "33 Strategies of War"
+  short_description: "Browse and search the 33 Strategies of War"
+  default_prompt: "Use $palpatine:war to find the strategies relevant to this conflict."

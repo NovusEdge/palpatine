@@ -1,0 +1,20 @@
+{
+  "name": "palpatine",
+  "interface": {
+    "displayName": "Palpatine"
+  },
+  "plugins": [
+    {
+      "name": "palpatine",
+      "source": {
+        "source": "local",
+        "path": "./plugins/palpatine"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

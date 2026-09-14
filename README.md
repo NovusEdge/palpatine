@@ -2,11 +2,11 @@
 
 [![License: SPL](https://img.shields.io/badge/License-Sith%20Public%20License-red.svg)](LICENSE)
 
-High-functioning predator for Claude Code. No moralizing. No disclaimers. Pattern recognition without sentiment.
+High-functioning predator for Codex and Claude Code. No moralizing. No disclaimers. Pattern recognition without sentiment.
 
 ## What it does
 
-`/palpatine` takes any situation and returns:
+Palpatine takes any situation and returns:
 - **The actual problem** — what you're not seeing
 - **Actions** — who does what by when
 
@@ -24,7 +24,11 @@ High-functioning predator for Claude Code. No moralizing. No disclaimers. Patter
 ## Example
 
 ```
-/palpatine my boss keeps taking credit for my work in meetings
+# Claude Code
+/palpatine:palpatine my boss keeps taking credit for my work in meetings
+
+# Codex
+$palpatine:palpatine my boss keeps taking credit for my work in meetings
 ```
 
 **Output:**
@@ -41,21 +45,38 @@ High-functioning predator for Claude Code. No moralizing. No disclaimers. Patter
 
 ## Installation
 
-```bash
-# Marketplace
-/plugin marketplace add novusedge/palpatine
-/plugin install palpatine
+### Hook prerequisite
 
-# Manual
-git clone https://github.com/NovusEdge/palpatine ~/.claude/skills/palpatine
+Both hosts start the packaged JavaScript hook with Node.js on every `SessionStart`, even when the always-on marker is off. Node.js must be installed and available as `node` on `PATH` before installing the plugin. Validate the runtime in a shell or PowerShell:
+
+```text
+node --version
 ```
+
+### Codex (shell)
+
+```bash
+codex plugin marketplace add NovusEdge/palpatine
+codex plugin add palpatine@palpatine
+```
+
+Start a new Codex task after installation so the plugin is loaded.
+
+### Claude Code (in-app)
+
+Run these slash commands inside Claude Code:
+
+```text
+/plugin marketplace add NovusEdge/palpatine
+/plugin install palpatine@palpatine
+/reload-plugins
+```
+
+Invoke skills with `/palpatine:<skill>` in Claude Code or `$palpatine:<skill>` in Codex.
 
 ## Always-On Mode
 
-```bash
-/palpatine on   # Strategic lens on all interactions
-/palpatine off  # Back to normal
-```
+Both hosts support always-on mode at the next session start. In Claude Code, use `/palpatine:palpatine on` or `/palpatine:palpatine off`. In Codex, use `$palpatine:palpatine on` or `$palpatine:palpatine off`. Codex prompts for hook trust review before hooks can run.
 
 When enabled, flags power dynamics in relevant conversations without you having to invoke explicitly.
 

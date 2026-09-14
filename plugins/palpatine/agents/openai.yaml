@@ -1,0 +1,4 @@
+interface:
+  display_name: "Palpatine"
+  short_description: "Strategic analysis and adversary simulation"
+  default_prompt: "Use $palpatine:palpatine to diagnose the power dynamics in this situation and give me concrete moves."

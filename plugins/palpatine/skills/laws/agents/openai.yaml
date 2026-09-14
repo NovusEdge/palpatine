@@ -1,0 +1,4 @@
+interface:
+  display_name: "48 Laws Reference"
+  short_description: "Browse and search the 48 Laws of Power"
+  default_prompt: "Use $palpatine:laws to find the laws relevant to this situation."
