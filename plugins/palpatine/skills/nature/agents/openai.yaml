@@ -1,0 +1,4 @@
+interface:
+  display_name: "Human Nature Reference"
+  short_description: "Browse and apply 18 human nature patterns"
+  default_prompt: "Use $palpatine:nature to find the behavior patterns relevant to this situation."

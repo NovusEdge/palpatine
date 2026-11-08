@@ -22,6 +22,10 @@ Invoked via Claude Code `/palpatine:adversary` or Codex `$palpatine:adversary`, 
 - Simple 2-party dynamics
 - Quick read is sufficient
 
+## Behavioral context
+
+Before modeling interpersonal reactions, consult `../nature/SKILL.md` and complete matching records in `../nature/references/human_nature_index.json`, resolved relative to this skill's `SKILL.md`. Apply its observation-versus-inference rule. When a pattern matters, include its short behavioral interpretation in the dispatched situation, separately labeled as a hypothesis alongside the original observed facts. Workers start without shared context, so pass the relevant text rather than assuming they have read a sibling skill. Keep the existing response schemas; synthesize the diagnosis and moves without author names, book titles, law numbers, or citations.
+
 ## Host Agent Patterns
 
 ### Schemas

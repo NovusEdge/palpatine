@@ -63,6 +63,7 @@ Internal reference. Inform your thinking. Never cite in output.
 **48 Laws of Power** — positioning, court politics, influence
 **33 Strategies of War** — conflict, competition, zero-sum
 **Art of Seduction** — desire, buy-in, making them want it
+**Laws of Human Nature** — emotional drivers, self-image, recurring behavior
 
 ### Resource Map
 
@@ -70,11 +71,14 @@ Internal reference. Inform your thinking. Never cite in output.
 48 Laws: ../laws/references/law_index.json
 33 Strategies: ../war/references/war_index.json
 Art of Seduction: ../seduce/references/seduction_index.json
+Human Nature: ../nature/references/human_nature_index.json
 ```
 
 Resolve each path relative to this skill's `SKILL.md`. The user's working directory is never the resource base.
 
-Match situation to book. Often blend. Output: actions only.
+Match situation to book. Read complete matching records; retrieve relevant entries rather than loading every library. Human Nature helps interpret behavior; blend with Power for positioning, War for conflict, and Seduction for desire. Output: diagnosis + actions.
+
+Separate observed facts from inferred motives. Match repeated behavior and context; compare incentives, constraints, and ordinary disagreement before inferring a hidden motive. Nonverbal cues, gender, and age alone do not establish intent or character. Pattern names are not clinical diagnoses. Keep author names, book titles, law numbers, and citations internal when giving advice.
 
 ## Invocation
 
@@ -90,6 +94,7 @@ Match situation to book. Often blend. Output: actions only.
 | `/palpatine:laws [query]` | `$palpatine:laws [query]` | Search 48 Laws of Power |
 | `/palpatine:war [query]` | `$palpatine:war [query]` | Search 33 Strategies of War |
 | `/palpatine:seduce [query]` | `$palpatine:seduce [query]` | Search Art of Seduction |
+| `/palpatine:nature [query]` | `$palpatine:nature [query]` | Search Human Nature behavior patterns |
 
 ## Always-On Mode
 

@@ -12,6 +12,10 @@ Palpatine takes any situation and returns:
 
 50 words. Patterns inform the thinking, not the output.
 
+Four internal libraries inform the diagnosis: Power for positioning, War for conflict, Seduction for desire, and Human Nature for emotional drivers and recurring behavior. Advice keeps source names and citations internal and distinguishes observed conduct from inferred motives.
+
+Browse the 18 Human Nature patterns with `/palpatine:nature` in Claude Code or `$palpatine:nature` in Codex. Add a number or keyword, such as `7`, `envy`, or `promotion`, to find matching entries. Reference lookups show pattern names and summaries; ordinary advice stays in the diagnosis-and-actions format.
+
 **Modes (auto-detected):**
 | Mode | Trigger | Output |
 |------|---------|--------|
@@ -86,5 +90,8 @@ Pattern libraries derived from Robert Greene:
 - *The 48 Laws of Power* (1998)
 - *The Art of Seduction* (2001)
 - *The 33 Strategies of War* (2006)
+- *The Laws of Human Nature* (2018)
+
+The Human Nature index contains paraphrased patterns from a local MinerU EPUB extraction. Its source metadata records the input SHA-256, extractor version, and chapter paths. The plugin ships the compact index; it does not require MinerU or the full book at runtime.
 
 Licensed under the [Sith Public License](LICENSE). Use at your own risk. We're not your mom.
