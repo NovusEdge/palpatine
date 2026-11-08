@@ -34,6 +34,8 @@
       "Wargame this decision and show the likely counter-moves.",
       "Identify the manipulation pattern and give me a defense."
     ],
-    "brandColor": "#991B1B"
+    "brandColor": "#991B1B",
+    "composerIcon": "./assets/palpatine-icon.png",
+    "logo": "./assets/palpatine-icon.png"
   }
 }

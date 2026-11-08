@@ -1912,6 +1912,7 @@ const codexMarketplace = readJson(".agents/plugins/marketplace.json");
 const lawData = readJson("plugins/palpatine/skills/laws/references/law_index.json");
 const warData = readJson("plugins/palpatine/skills/war/references/war_index.json");
 const seductionData = readJson("plugins/palpatine/skills/seduce/references/seduction_index.json");
+const humanNatureData = readJson("plugins/palpatine/skills/nature/references/human_nature_index.json");
 const hooksConfig = readJson("plugins/palpatine/hooks/hooks.json");
 
 checkManifest(claudeManifest, "Claude");
@@ -2007,6 +2008,39 @@ for (const skillName of skillNames) {
     `${skillPath} must document the Codex invocation`,
   );
   checkFencedJavaScriptSyntax(skillPath, skill);
+}
+
+const natureSkill = readText("plugins/palpatine/skills/nature/SKILL.md");
+const natureLookup = natureSkill.match(/node -e '\n([\s\S]*?)\n'/)?.[1];
+check(typeof natureLookup === "string", "Human Nature must provide a runnable lookup");
+if (natureLookup) {
+  for (const [query, expectedIds] of [
+    ["", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]],
+    ["1", [1]],
+    [" 7 ", [7]],
+    ["ENVY", [10]],
+    ["promotion", [10]],
+    ["groupthink", [14]],
+    ["19", []],
+    ["unindexed term", []],
+    ["$(exit 1)", []],
+  ]) {
+    const result = spawnSync(process.execPath, [
+      "-e", natureLookup,
+      path.join(pluginRoot, "skills", "nature", "references", "human_nature_index.json"),
+      query,
+    ], { cwd: path.dirname(root), encoding: "utf8" });
+    let records;
+    try { records = JSON.parse(result.stdout); } catch { records = null; }
+    check(result.status === 0 && Array.isArray(records) &&
+      JSON.stringify(records.map((record) => record?.id)) === JSON.stringify(expectedIds),
+    `Human Nature lookup for ${JSON.stringify(query)} must return ${JSON.stringify(expectedIds)} outside the project directory`);
+    check(Array.isArray(records) && records.every((record) =>
+      typeof record?.essence === "string" && Array.isArray(record.when) && Array.isArray(record.keywords)),
+    "Human Nature lookup must return complete records");
+    check(!/Robert Greene|epub_sha256/.test(result.stdout ?? ""),
+      "Human Nature lookup must keep source metadata internal");
+  }
 }
 
 const adversaryPath = "plugins/palpatine/skills/adversary/SKILL.md";
@@ -2337,6 +2371,34 @@ if (warData) check(warData.strategies?.length === 33, "War data must contain 33 
 if (seductionData) {
   check(seductionData.seducer_types?.length === 9, "Seduction data must contain 9 types");
   check(countSteps(seductionData) === 24, "Seduction data must contain 24 total steps");
+}
+if (humanNatureData) {
+  const laws = humanNatureData.laws;
+  check(Array.isArray(laws) && laws.length === 18, "Human Nature data must contain 18 laws");
+  if (Array.isArray(laws)) {
+    check(
+      laws.map((law) => law?.id).sort((a, b) => a - b).join(",") ===
+        "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18",
+      "Human Nature laws must have unique chapter IDs 1 through 18",
+    );
+    for (const law of laws) {
+      for (const field of ["name", "essence"]) {
+        check(typeof law?.[field] === "string" && law[field].trim().length > 0,
+          `Human Nature law ${law?.id} must have ${field}`);
+      }
+      for (const field of ["when", "keywords"]) {
+        check(Array.isArray(law?.[field]) && law[field].length > 0 &&
+          law[field].every((value) => typeof value === "string" && value.trim().length > 0),
+        `Human Nature law ${law?.id} must have non-empty ${field}`);
+      }
+    }
+    for (const [id, query] of [[7, "defensiveness"], [10, "envy"], [14, "groupthink"]]) {
+      check(laws.some((law) => law?.id === id && Array.isArray(law.keywords) && law.keywords.includes(query)),
+        `Human Nature keyword lookup for ${query} must find chapter ${id}`);
+    }
+  }
+  check(/^[a-f0-9]{64}$/.test(humanNatureData.source?.epub_sha256 ?? ""),
+    "Human Nature source must identify the extracted EPUB by SHA-256");
 }
 
 if (errors.length > 0) {

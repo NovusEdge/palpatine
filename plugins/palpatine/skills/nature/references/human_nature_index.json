@@ -1,0 +1,468 @@
+{
+  "source": {
+    "title": "The Laws of Human Nature",
+    "author": "Robert Greene",
+    "epub_sha256": "3e25c6262d15dcba013df0147ee0408f06b5887b9acabe117244d262025f23f4",
+    "extraction": {
+      "tool": "MinerU",
+      "version": "4.1.7",
+      "entrypoint": "mineru.backend.analysis.epub.analyze_epub",
+      "engine": "DocVortex 0.6.13",
+      "mode": "local EPUB Flash"
+    },
+    "chapter_hrefs": [
+      "OEBPS/xhtml/08_1_Master_Your_Emotion.xhtml",
+      "OEBPS/xhtml/09_2_Transform_Self-love.xhtml",
+      "OEBPS/xhtml/10_3_See_Through_People_.xhtml",
+      "OEBPS/xhtml/11_4_Determine_the_Stren.xhtml",
+      "OEBPS/xhtml/12_5_Become_an_Elusive_O.xhtml",
+      "OEBPS/xhtml/13_6_Elevate_Your_Perspe.xhtml",
+      "OEBPS/xhtml/14_7_Soften_People_s_Res.xhtml",
+      "OEBPS/xhtml/15_8_Change_Your_Circums.xhtml",
+      "OEBPS/xhtml/16_9_Confront_Your_Dark_.xhtml",
+      "OEBPS/xhtml/17_10_Beware_the_Fragile.xhtml",
+      "OEBPS/xhtml/18_11_Know_Your_Limits_T.xhtml",
+      "OEBPS/xhtml/19_12_Reconnect_to_the_M.xhtml",
+      "OEBPS/xhtml/20_13_Advance_with_a_Sen.xhtml",
+      "OEBPS/xhtml/21_14_Resist_the_Downwar.xhtml",
+      "OEBPS/xhtml/22_15_Make_Them_Want_to_.xhtml",
+      "OEBPS/xhtml/23_16_See_the_Hostility_.xhtml",
+      "OEBPS/xhtml/24_17_Seize_the_Historic.xhtml",
+      "OEBPS/xhtml/25_18_Meditate_on_Our_Co.xhtml"
+    ]
+  },
+  "laws": [
+    {
+      "id": 1,
+      "name": "Irrationality",
+      "essence": "Emotion can choose the conclusion before reasoning begins. Under pressure, people favor evidence that protects their ego or confirms their mood, then defend the choice as rational. Slow the decision and test the preferred story against contrary facts.",
+      "when": [
+        "emotionally charged decisions",
+        "selective use of evidence",
+        "reacting to sudden gains or losses",
+        "certainty rising under pressure"
+      ],
+      "keywords": [
+        "irrationality",
+        "emotion",
+        "bias",
+        "confirmation",
+        "anger",
+        "fear",
+        "pressure",
+        "reactive",
+        "ego",
+        "certainty",
+        "evidence"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Narcissism",
+      "essence": "Self-absorption narrows attention to personal recognition and makes other people harder to read. When self-worth depends on outside approval, disagreement can become a demand for reassurance or admiration. Attend to the other person's perspective while judging reciprocity by repeated conduct.",
+      "when": [
+        "conversation repeatedly returns to one person",
+        "recognition matters more than shared results",
+        "criticism produces demands for reassurance",
+        "little interest in other people's needs"
+      ],
+      "keywords": [
+        "narcissism",
+        "self-absorption",
+        "attention",
+        "validation",
+        "admiration",
+        "recognition",
+        "empathy",
+        "approval",
+        "self-worth",
+        "reciprocity"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Role-playing",
+      "essence": "People manage appearances to meet an audience's expectations and protect their position. Their conduct across settings can reveal gaps between the role and their priorities. Compare words with repeated actions and changes from their normal behavior before trusting the performance.",
+      "when": [
+        "public support conflicts with private conduct",
+        "behavior changes with the audience",
+        "polished promises lack follow-through",
+        "a favorable first impression drives a major commitment"
+      ],
+      "keywords": [
+        "role-playing",
+        "mask",
+        "appearance",
+        "impression",
+        "audience",
+        "public",
+        "private",
+        "performance",
+        "promises",
+        "inconsistency",
+        "nonverbal"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Compulsive Behavior",
+      "essence": "Established habits often reappear when people face familiar pressures. A new promise or reputation gives less evidence than their record of handling setbacks, responsibility, and criticism. Use repeated conduct to judge reliability and require demonstrated change before increasing dependence.",
+      "when": [
+        "the same conflict repeats across teams",
+        "promises to change outpace changed behavior",
+        "choosing a partner or hiring someone",
+        "stress reveals a recurring response"
+      ],
+      "keywords": [
+        "compulsive",
+        "behavior",
+        "habit",
+        "repetition",
+        "pattern",
+        "character",
+        "reliability",
+        "hiring",
+        "partner",
+        "accountability",
+        "setback",
+        "track record"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Covetousness",
+      "essence": "People can project missing excitement or status onto what feels distant, scarce, or desired by others. Possession then exposes the gap between fantasy and reality. Understand what the offer symbolizes and distinguish genuine value from the attraction of restricted access.",
+      "when": [
+        "interest rises when access falls",
+        "people chase what others want",
+        "an unavailable option seems uniquely valuable",
+        "desire fades after getting the prize"
+      ],
+      "keywords": [
+        "covetousness",
+        "desire",
+        "scarcity",
+        "absence",
+        "unavailable",
+        "fantasy",
+        "mystery",
+        "exclusive",
+        "competition",
+        "access",
+        "status"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Shortsightedness",
+      "essence": "Vivid recent events can crowd out long-term consequences. People react to immediate relief, excitement, or panic and create larger problems later. Put the decision in its wider timeline and make the downstream costs visible before committing.",
+      "when": [
+        "repeated firefighting replaces planning",
+        "a quick win creates later obligations",
+        "recent news triggers a strategic reversal",
+        "a conflict escalates without an exit plan"
+      ],
+      "keywords": [
+        "shortsightedness",
+        "short-term",
+        "long-term",
+        "urgency",
+        "panic",
+        "reactive",
+        "firefighting",
+        "consequences",
+        "perspective",
+        "quick win",
+        "timing"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Defensiveness",
+      "essence": "Pressure to change can threaten a person's sense of autonomy, competence, or goodness. They may resist the threat to self-image as much as the proposal itself. Listen for what they need to preserve and offer choices that let them participate without public humiliation.",
+      "when": [
+        "direct persuasion increases resistance",
+        "public correction hardens someone's position",
+        "a proposal is treated as an attack on competence",
+        "people reject a change they had no part in shaping"
+      ],
+      "keywords": [
+        "defensiveness",
+        "resistance",
+        "autonomy",
+        "self-image",
+        "self-opinion",
+        "criticism",
+        "persuasion",
+        "competence",
+        "control",
+        "face",
+        "feedback",
+        "ownership"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Self-sabotage",
+      "essence": "A habitual attitude shapes what people notice and how they treat others. Suspicion or fear can provoke withdrawal and hostility, producing apparent confirmation of the original expectation. Test the interpretation and change one controllable response to see whether the interaction changes.",
+      "when": [
+        "expecting rejection leads to withdrawal",
+        "suspicion repeatedly provokes defensive reactions",
+        "blame blocks learning from setbacks",
+        "the same negative outcome follows a familiar response"
+      ],
+      "keywords": [
+        "self-sabotage",
+        "attitude",
+        "suspicion",
+        "fear",
+        "hostility",
+        "withdrawal",
+        "expectation",
+        "blame",
+        "pessimism",
+        "feedback loop",
+        "rejection"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Repression",
+      "essence": "People may deny impulses that conflict with their preferred self-image, then express them indirectly through blame, moral certainty, or contradictory conduct. Look for repeated gaps between professed values and actions, including your own, rather than treating a virtuous claim as proof of its opposite.",
+      "when": [
+        "professed values repeatedly conflict with conduct",
+        "someone condemns a trait they repeatedly display",
+        "an immaculate public image hides recurring outbursts",
+        "denied resentment appears through indirect attacks"
+      ],
+      "keywords": [
+        "repression",
+        "shadow",
+        "projection",
+        "contradiction",
+        "denial",
+        "self-image",
+        "moralizing",
+        "resentment",
+        "outburst",
+        "hypocrisy"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Envy",
+      "essence": "A peer's success can make a comparison feel like a loss of personal rank. If that discomfort turns hostile, devaluation or obstruction can restore a sense of superiority. Look for criticism tied repeatedly to recognition or status changes and distinguish it from objections grounded in the work.",
+      "when": [
+        "belittling begins after a peer's promotion",
+        "praise is followed by repeated minimizing comments",
+        "cooperation declines after public recognition",
+        "a peer's success becomes a recurring target of personal digs"
+      ],
+      "keywords": [
+        "envy",
+        "jealousy",
+        "comparison",
+        "status",
+        "promotion",
+        "recognition",
+        "peer",
+        "belittling",
+        "minimizing",
+        "resentment",
+        "devaluation",
+        "sabotage"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Grandiosity",
+      "essence": "Success can inflate a person's estimate of their own ability and erase the contributions of luck and other people. Feeling exempt from limits makes criticism unwelcome and larger gambles attractive. Reconnect authority and ambition to evidence, practical constraints, and accountable decisions.",
+      "when": [
+        "a winning streak is treated as proof of infallibility",
+        "a leader dismisses limits after success",
+        "credit concentrates while blame is delegated",
+        "confidence grows faster than demonstrated ability"
+      ],
+      "keywords": [
+        "grandiosity",
+        "hubris",
+        "overconfidence",
+        "success",
+        "infallible",
+        "limits",
+        "luck",
+        "credit",
+        "certainty",
+        "entitlement",
+        "risk"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Gender Rigidity",
+      "essence": "Overidentifying with an expected gender role can restrict useful qualities and turn relationships into projections of an ideal. Notice when the role rules out listening, assertiveness, care, or flexibility that the situation requires. Judge the person's conduct and develop the missing capacity rather than inferring traits from gender.",
+      "when": [
+        "someone rejects useful behavior as incompatible with their gender role",
+        "a relationship is judged against a rigid ideal",
+        "role expectations block a needed change in approach",
+        "assertiveness or care is treated as a threat to identity"
+      ],
+      "keywords": [
+        "gender rigidity",
+        "gender role",
+        "identity",
+        "projection",
+        "rigidity",
+        "stereotype",
+        "assertiveness",
+        "care",
+        "flexibility",
+        "idealization"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Aimlessness",
+      "essence": "Without an internal direction, people drift toward moods, approval, or causes that offer borrowed significance. Their commitments then change with the next source of excitement or belonging. Clarify the purpose behind the work and use it to choose priorities and reject distractions.",
+      "when": [
+        "priorities change with whoever last spoke",
+        "approval substitutes for a personal objective",
+        "new causes repeatedly replace unfinished commitments",
+        "status goals continue after the work has lost meaning"
+      ],
+      "keywords": [
+        "aimlessness",
+        "purpose",
+        "direction",
+        "drifting",
+        "approval",
+        "priorities",
+        "distraction",
+        "commitment",
+        "meaning",
+        "calling",
+        "false purpose"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Conformity",
+      "essence": "The need to belong can make group members copy its judgments, absorb its mood, and suppress doubts they would express alone. Apparent consensus can then hide weak evidence. Get independent assessments before discussion and protect room for disagreement while cooperating on shared goals.",
+      "when": [
+        "private doubts disappear in the meeting",
+        "people repeat the leader's view without independent evidence",
+        "a group takes risks individuals would reject",
+        "outsiders become a shared target of blame"
+      ],
+      "keywords": [
+        "conformity",
+        "groupthink",
+        "consensus",
+        "belonging",
+        "group",
+        "dissent",
+        "crowd",
+        "loyalty",
+        "scapegoat",
+        "peer pressure",
+        "meeting"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Fickleness",
+      "essence": "People want the protection of leadership while resisting dependence on it. Support becomes unstable when authority appears self-serving, unfair, or unable to carry the burden. Build legitimacy through competence, consistent standards, and visible service to the group rather than relying on title or popularity.",
+      "when": [
+        "support for a leader collapses after a setback",
+        "a title fails to produce commitment",
+        "friendliness wins approval but not trust in decisions",
+        "people question whose interests authority serves"
+      ],
+      "keywords": [
+        "fickleness",
+        "authority",
+        "leadership",
+        "legitimacy",
+        "loyalty",
+        "fairness",
+        "trust",
+        "popularity",
+        "service",
+        "setback",
+        "followers"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "Aggression",
+      "essence": "Frustrated efforts to influence events can become attempts to control other people. Where open hostility carries a cost, aggression may appear as obstruction, guilt, or deniable attacks. Look for repeated boundary violations and attempts to provoke a reaction; channel your own assertiveness into clear limits and concrete work.",
+      "when": [
+        "friendly language accompanies repeated obstruction",
+        "resistance to control triggers intimidation",
+        "deniable attacks recur after boundaries are set",
+        "provocation draws attention away from the original demand"
+      ],
+      "keywords": [
+        "aggression",
+        "passive aggression",
+        "hostility",
+        "control",
+        "intimidation",
+        "obstruction",
+        "provocation",
+        "boundaries",
+        "frustration",
+        "guilt",
+        "sabotage"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "Generational Myopia",
+      "essence": "Shared formative events can make a cohort's assumptions feel like universal truths. Familiar approaches then survive beyond the conditions that made them useful. Examine which experiences shaped the view, seek perspectives formed under different conditions, and test the assumptions against current circumstances.",
+      "when": [
+        "past success is used to dismiss changed conditions",
+        "groups shaped by different eras talk past each other",
+        "an old playbook persists despite new evidence",
+        "a cultural shift is dismissed as a temporary aberration"
+      ],
+      "keywords": [
+        "generational myopia",
+        "generation",
+        "cohort",
+        "formative",
+        "history",
+        "zeitgeist",
+        "culture",
+        "change",
+        "trend",
+        "old playbook",
+        "assumptions"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "Death Denial",
+      "essence": "Avoiding the reality of limited time can sustain postponement, inflated status concerns, and avoidance of difficult endings. A deliberate awareness of mortality can restore proportion and focus attention on meaningful work and relationships. Translate that perspective into a chosen priority and action rather than manufactured panic.",
+      "when": [
+        "important work is deferred as though time were unlimited",
+        "minor status disputes consume disproportionate effort",
+        "a loss prompts reassessment of priorities",
+        "fear of endings prevents a necessary decision"
+      ],
+      "keywords": [
+        "death denial",
+        "mortality",
+        "time",
+        "legacy",
+        "loss",
+        "ending",
+        "procrastination",
+        "priorities",
+        "meaning",
+        "proportion",
+        "purpose"
+      ]
+    }
+  ]
+}

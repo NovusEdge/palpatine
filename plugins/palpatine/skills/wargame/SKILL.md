@@ -7,6 +7,10 @@ description: Multi-turn adversary simulation. Play out scenarios move-by-move wi
 
 Invoked via Claude Code `/palpatine:wargame` or Codex `$palpatine:wargame`, or auto-detected when user says "if I do X, what happens", "play this out", "simulate", "then what".
 
+## Behavioral context
+
+When predicting reactions, consult `../nature/SKILL.md` and complete matching records in `../nature/references/human_nature_index.json`. Resolve both paths relative to this skill's `SKILL.md`, never the user's working directory. Apply its observation-versus-inference rule; distinguish known conduct from a predicted reaction. Keep author names, book titles, law numbers, and citations internal. Let the patterns inform the moves and brief reasons in the existing turn format.
+
 ## Response Format
 
 ### Turn-by-Turn

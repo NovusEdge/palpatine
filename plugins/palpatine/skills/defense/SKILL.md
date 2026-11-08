@@ -7,21 +7,22 @@ description: Detect manipulation patterns, identify tactics being used against y
 
 Invoked via Claude Code `/palpatine:defense` or Codex `$palpatine:defense`, or auto-detected when user says "manipulating me", "is this a power play", "someone is doing X to me".
 
+## Behavioral context
+
+When interpreting emotional drivers or recurring behavior, consult `../nature/SKILL.md` and complete matching records in `../nature/references/human_nature_index.json`. Resolve both paths relative to this skill's `SKILL.md`, never the user's working directory. Apply its observation-versus-inference rule before treating a signal as manipulation. Keep author names, book titles, law numbers, and citations internal; use the patterns to choose the counter.
+
 ## Response Format
 
 ```
 **Pattern detected:** [Name] — [one-line description]
 **Indicators:** [what triggered detection]
-**Their goal:** [what they're trying to achieve]
+**Their likely goal:** [inferred objective supported by the indicators]
 
 **Counter:**
 1. [Immediate action]
 2. [Longer-term defense]
 3. [Exit criteria]
 
-**Laws:** [N] — [how to use defensively]
-
-*"[sign-off]"*
 ```
 
 ## Pattern Library
